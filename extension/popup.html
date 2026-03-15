@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Project Pocket</title>
+  <style>
+    :root {
+      --bg: #1a1a24;
+      --surface: #22222e;
+      --accent: #7c6af7;
+      --text: #e8e8f0;
+      --muted: #888898;
+      --danger: #e05260;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      width: 320px;
+      padding: 1rem;
+    }
+    h1 { font-size: 1rem; color: var(--accent); margin-bottom: 1rem; }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+      font-size: .8rem;
+      color: var(--muted);
+      margin-bottom: .7rem;
+    }
+    input, textarea {
+      background: var(--surface);
+      border: 1px solid #333344;
+      color: var(--text);
+      padding: .45rem .7rem;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      outline: none;
+      width: 100%;
+      font-family: inherit;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    .row { display: flex; align-items: center; gap: .5rem; margin-bottom: .7rem; }
+    .option-row { display: flex; gap: 1rem; margin-bottom: .7rem; flex-wrap: wrap; }
+    .option-row .row { margin-bottom: 0; }
+    .row input[type=checkbox] { width: auto; }
+    .row label { margin: 0; color: var(--text); font-size: .85rem; flex-direction: row; }
+    .host-row {
+      font-size: .7rem;
+      color: var(--muted);
+      margin-bottom: .9rem;
+      display: flex;
+      gap: .4rem;
+      align-items: center;
+    }
+    .host-row input { font-size: .7rem; padding: .3rem .6rem; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .55rem 1.2rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 600;
+      width: 100%;
+      transition: opacity .2s;
+    }
+    button:hover { opacity: .85; }
+    .actions-row {
+      display: flex;
+      gap: .5rem;
+    }
+    .actions-row button {
+      width: auto;
+      flex: 1;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid #333344;
+      font-weight: 500;
+    }
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      opacity: 1;
+    }
+    #status { margin-top: .75rem; font-size: .8rem; color: var(--accent); text-align: center; min-height: 1.1rem; }
+    .settings-toggle {
+      background: transparent;
+      color: var(--muted);
+      font-size: .75rem;
+      width: auto;
+      padding: 0;
+      margin-top: .5rem;
+      text-decoration: underline;
+    }
+    #settings-panel { display: none; margin-top: .75rem; }
+    #settings-panel.open { display: block; }
+  </style>
+</head>
+<body>
+  <h1>📌 Project Pocket</h1>
+
+  <label>Title
+    <input type="text" id="title" placeholder="Title" />
+  </label>
+
+  <label>Tags (comma-separated)
+    <input type="text" id="tags" list="tag-suggestions-list" placeholder="cooking, reference…" />
+  </label>
+
+  <label id="yt-time-row">YouTube timestamp
+    <input type="text" id="yt-time" placeholder="e.g. 1:23 or 83" />
+  </label>
+
+  <label>Notes
+    <textarea id="notes" rows="2" placeholder="Your notes…"></textarea>
+  </label>
+
+  <div class="option-row">
+    <div class="row">
+      <input type="checkbox" id="is-recipe" />
+      <label for="is-recipe">Recipe</label>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="is-music" />
+      <label for="is-music">Music</label>
+    </div>
+  </div>
+
+  <div class="actions-row">
+    <button id="save-btn">Save Page</button>
+    <button id="open-pocket-btn" class="btn-secondary">Open Pocket</button>
+  </div>
+  <p id="status"></p>
+
+  <button class="settings-toggle" id="settings-toggle">⚙ Settings</button>
+  <div id="settings-panel">
+    <label>Pocket server URL
+      <input type="url" id="server-url" placeholder="http://localhost:3000" />
+    </label>
+    <button id="save-settings" style="margin-top:.3rem">Save Settings</button>
+  </div>
+
+  <datalist id="tag-suggestions-list"></datalist>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Pocket</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>📌 Project Pocket</h1>
+      <nav>
+        <button class="nav-btn active" data-view="all">All Pages</button>
+        <button class="nav-btn" data-view="recipes">Recipes</button>
+        <button class="nav-btn" data-view="music">Music</button>
+        <button class="nav-btn" data-view="domains">By Domain</button>
+      </nav>
+      <div class="header-actions">
+        <button class="nav-btn" id="add-page-btn">+ Add Page</button>
+        <button class="nav-btn" id="settings-btn">⚙️ Settings</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Search & filter bar -->
+    <section id="filter-bar">
+      <input type="text" id="search-input" placeholder="Search pages…" />
+      <select id="tag-filter">
+        <option value="">All tags</option>
+      </select>
+      <select id="tag-sort" style="display:none">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="title-asc">Title A-Z</option>
+        <option value="title-desc">Title Z-A</option>
+        <option value="tag-asc">Tag A-Z</option>
+        <option value="tag-desc">Tag Z-A</option>
+      </select>
+    </section>
+
+    <!-- Views -->
+    <section id="view-all" class="view active">
+      <div id="pages-grid" class="pages-grid"></div>
+    </section>
+
+    <section id="view-recipes" class="view">
+      <h2>🍳 Recipes</h2>
+      <div id="recipes-pantry-tools" class="recipes-tools">
+        <div class="recipes-tools-row">
+          <input type="text" id="recipes-pantry-input" placeholder="Add ingredient you have (e.g. tomato)" />
+          <button id="recipes-pantry-add" type="button" class="btn-toggle">Add</button>
+          <button id="recipes-pantry-clear" type="button" class="btn-toggle">Clear</button>
+        </div>
+        <div class="recipes-tools-row recipes-tools-filter-row">
+          <span>Recipe filter</span>
+          <select id="recipes-match-mode">
+            <option value="all">All recipes</option>
+            <option value="makeable">Can make now</option>
+            <option value="near">Missing up to 3 ingredients</option>
+          </select>
+        </div>
+        <div id="recipes-pantry-list" class="recipes-pantry-list"></div>
+        <p id="recipes-match-summary" class="recipes-match-summary"></p>
+      </div>
+      <div id="recipes-grid" class="pages-grid fixed-grid"></div>
+    </section>
+
+    <section id="view-music" class="view">
+      <h2>🎵 Music</h2>
+      <div id="music-grid" class="pages-grid"></div>
+    </section>
+
+    <section id="view-domains" class="view">
+      <h2>🌐 Browse by Domain</h2>
+      <div id="domain-list" class="domain-list"></div>
+      <div id="domain-pages" class="pages-grid" style="margin-top:1.5rem"></div>
+    </section>
+
+  </main>
+
+  <!-- Settings overlay -->
+  <div id="settings-overlay" class="hidden">
+    <div class="modal settings-modal">
+      <button id="settings-close" class="modal-close">×</button>
+      <h3>⚙️ Settings</h3>
+
+      <div class="settings-section">
+        <h4>Card Layout</h4>
+        <div class="settings-row">
+          <span>Theme</span>
+          <button id="theme-mode-btn" class="btn-toggle">☀️ Light</button>
+        </div>
+        <div class="settings-row">
+          <span>View mode</span>
+          <button id="view-mode-btn" class="btn-toggle">🗃️ List</button>
+        </div>
+        <div class="settings-row">
+          <span>Date format</span>
+          <button id="date-format-btn" class="btn-toggle">DD.MM.YYYY 24h</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h4>⚡ Auto Tag Rules</h4>
+        <p class="rule-hint">Rules automatically add tags when a page is saved. In URL contains and Title contains, use * for any chars and ? for one char.</p>
+        <form id="rule-form">
+          <div class="rule-form-row">
+            <select id="r-match-type">
+              <option value="domain">Domain equals</option>
+              <option value="url_contains">URL contains</option>
+              <option value="title_contains">Title contains</option>
+            </select>
+            <input type="text" id="r-pattern" placeholder="e.g. youtube.com" required />
+            <span class="rule-arrow">&#8594;</span>
+            <input type="text" id="r-tags" placeholder="tags, to, apply" required />
+            <button type="submit" class="btn-primary">Add Rule</button>
+          </div>
+          <p id="rule-status"></p>
+        </form>
+        <!-- List appears directly below the add controls -->
+        <div id="rule-list" class="rule-list"></div>
+      </div>
+
+      <div class="settings-section">
+        <h4>Data Backup</h4>
+        <p class="settings-hint">Export or import all saves as CSV.</p>
+        <div class="settings-actions">
+          <button id="export-csv-btn" class="btn-toggle" type="button">Export CSV</button>
+          <button id="import-csv-btn" class="btn-toggle" type="button">Import CSV</button>
+          <button id="delete-all-btn" class="btn-toggle btn-danger-action" type="button">Delete All Saves</button>
+        </div>
+        <input type="file" id="import-csv-input" accept=".csv,text/csv" style="display:none" />
+        <p id="csv-status" class="settings-status"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit modal -->
+  <div id="modal-overlay" class="hidden">
+    <div class="modal">
+      <button id="modal-close" class="modal-close">×</button>
+      <h3 id="modal-title"></h3>
+      <form id="edit-form">
+        <label>Title <input type="text" id="e-title" /></label>
+        <label>Notes <textarea id="e-notes" rows="3"></textarea></label>
+        <label>Tags <input type="text" id="e-tags" list="tag-suggestions-list" /></label>
+        <div class="checkbox-row">
+          <label class="checkbox-label"><input type="checkbox" id="e-recipe" /> Recipe</label>
+          <label class="checkbox-label"><input type="checkbox" id="e-music" /> Music</label>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" id="modal-delete" class="btn-danger">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Page overlay -->
+  <div id="add-overlay" class="hidden">
+    <div class="modal">
+      <button id="add-overlay-close" class="modal-close">×</button>
+      <h3>Add a Page</h3>
+      <form id="add-form">
+        <label>URL *
+          <input type="url" id="f-url" required placeholder="https://example.com" />
+        </label>
+        <label>YouTube Timestamp (optional)
+          <input type="text" id="f-yt-time" placeholder="e.g. 1:23 or 83" />
+        </label>
+        <label>Title (optional — auto-fetched)
+          <input type="text" id="f-title" placeholder="Leave empty to auto-detect" />
+        </label>
+        <label>Notes
+          <textarea id="f-notes" rows="3" placeholder="Your notes…"></textarea>
+        </label>
+        <label>Tags (comma-separated)
+          <input type="text" id="f-tags" list="tag-suggestions-list" placeholder="cooking, tutorial, reference" />
+        </label>
+        <div class="checkbox-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="f-recipe" />
+            Recipe
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="f-music" />
+            Music
+          </label>
+        </div>
+        <button type="submit" class="btn-primary">Save Page</button>
+        <p id="add-status"></p>
+      </form>
+    </div>
+  </div>
+
+  <datalist id="tag-suggestions-list"></datalist>
+
+  <script src="app.js"></script>
+</body>
+</html>

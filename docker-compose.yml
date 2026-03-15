@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    container_name: pocket-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - pocket-db:/app/data
+    networks:
+      - pocket-net
+
+  frontend:
+    build: ./frontend
+    container_name: pocket-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - pocket-net
+
+networks:
+  pocket-net:
+    driver: bridge
+
+volumes:
+  pocket-db:
