@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project Pocket</title>
   <link rel="stylesheet" href="style.css" />
+  <script>
+    // Keep non-authenticated users on login, and send admins to the dedicated admin app.
+    (function() {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      if (localStorage.getItem('authIsAdmin') === 'true') {
+        window.location.href = 'admin.html';
+      }
+    })();
+  </script>
 </head>
 <body>
   <header>
@@ -14,6 +28,7 @@
         <button class="nav-btn active" data-view="all">All Pages</button>
         <button class="nav-btn" data-view="recipes">Recipes</button>
         <button class="nav-btn" data-view="music">Music</button>
+        <button class="nav-btn" data-view="shared">Shared</button>
         <button class="nav-btn" data-view="domains">By Domain</button>
       </nav>
       <div class="header-actions">
@@ -25,34 +40,35 @@
 
   <main>
     <!-- Search & filter bar -->
-    <section id="filter-bar">
-      <input type="text" id="search-input" placeholder="Search pages…" />
-      <select id="tag-filter">
-        <option value="">All tags</option>
-      </select>
-      <select id="tag-sort" style="display:none">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="title-asc">Title A-Z</option>
-        <option value="title-desc">Title Z-A</option>
-        <option value="tag-asc">Tag A-Z</option>
-        <option value="tag-desc">Tag Z-A</option>
-      </select>
-    </section>
-
-    <!-- Views -->
-    <section id="view-all" class="view active">
-      <div id="pages-grid" class="pages-grid"></div>
-    </section>
-
-    <section id="view-recipes" class="view">
-      <h2>🍳 Recipes</h2>
-      <div id="recipes-pantry-tools" class="recipes-tools">
-        <div class="recipes-tools-row">
-          <input type="text" id="recipes-pantry-input" placeholder="Add ingredient you have (e.g. tomato)" />
-          <button id="recipes-pantry-add" type="button" class="btn-toggle">Add</button>
+    <section id="filter-bar" class="recipes-tools all-pages-filters">
+      <div class="recipes-tools-row filter-bar-top">
+        <input type="text" id="search-input" placeholder="Search pages…" />
+        <div class="filter-tag-input-wrap recipes-top-filter-wrap" id="recipes-top-filter-wrap" style="display:none">
+          <div class="recipes-filter-combobox">
+            <input type="text" id="recipes-pantry-input" placeholder="Add ingredient or #tag (e.g. tomato, -onion, #pasta, -#vegan)" autocomplete="off" aria-autocomplete="list" aria-expanded="false" />
+            <div class="profile-dropdown" id="recipes-pantry-dropdown" role="listbox"></div>
+          </div>
           <button id="recipes-pantry-clear" type="button" class="btn-toggle">Clear</button>
         </div>
+        <div class="filter-tag-input-wrap" id="filter-tag-wrap">
+          <div class="filter-tag-combobox">
+            <input type="text" id="filter-tag-input" placeholder="Add filter tag (e.g. pasta)" autocomplete="off" aria-autocomplete="list" aria-expanded="false" />
+            <div class="profile-dropdown" id="filter-tag-dropdown" role="listbox"></div>
+          </div>
+          <button type="button" id="filter-tag-clear-btn" class="btn-toggle">Clear</button>
+        </div>
+        <select id="tag-sort" style="display:none">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="resaves-desc">Most resaved</option>
+          <option value="title-asc">Title A-Z</option>
+          <option value="title-desc">Title Z-A</option>
+          <option value="tag-asc">Tag A-Z</option>
+          <option value="tag-desc">Tag Z-A</option>
+        </select>
+      </div>
+      <div class="filter-bar-chips recipes-pantry-list" id="filter-bar-chips"></div>
+      <div id="recipes-extra-controls" class="recipes-extra-controls" style="display:none">
         <div class="recipes-tools-row recipes-tools-filter-row">
           <span>Recipe filter</span>
           <select id="recipes-match-mode">
@@ -64,18 +80,60 @@
         <div id="recipes-pantry-list" class="recipes-pantry-list"></div>
         <p id="recipes-match-summary" class="recipes-match-summary"></p>
       </div>
+    </section>
+
+    <!-- Views -->
+    <section id="view-all" class="view active">
+      <div id="pages-grid" class="pages-grid"></div>
+      <p id="pages-load-status" class="list-load-status" aria-live="polite"></p>
+    </section>
+
+    <section id="view-recipes" class="view">
+      <h2>🍳 Recipes</h2>
       <div id="recipes-grid" class="pages-grid fixed-grid"></div>
+      <p id="recipes-load-status" class="list-load-status" aria-live="polite"></p>
     </section>
 
     <section id="view-music" class="view">
       <h2>🎵 Music</h2>
       <div id="music-grid" class="pages-grid"></div>
+      <p id="music-load-status" class="list-load-status" aria-live="polite"></p>
+    </section>
+
+    <section id="view-shared" class="view">
+      <h2>🤝 Shared Saves</h2>
+      
+      <!-- Shared tabs -->
+      <div id="shared-tabs" class="filter-tabs" style="margin-bottom: 1.5rem;">
+        <button class="filter-tab active" data-shared-tab="received">📥 Received</button>
+        <button class="filter-tab" data-shared-tab="sent">📤 Sent</button>
+        <button class="filter-tab" data-shared-tab="requests">⏳ Requests</button>
+      </div>
+      
+      <!-- Sent shares tab -->
+      <div id="sent-shares-panel" class="shared-tab-content">
+        <div id="sent-grid" class="pages-grid"></div>
+        <p id="sent-load-status" class="list-load-status" aria-live="polite"></p>
+      </div>
+      
+      <!-- Received shares tab -->
+      <div id="received-shares-panel" class="shared-tab-content active">
+        <div id="received-grid" class="pages-grid"></div>
+        <p id="received-load-status" class="list-load-status" aria-live="polite"></p>
+      </div>
+      
+      <!-- Requests (pending) tab -->
+      <div id="requests-shares-panel" class="shared-tab-content">
+        <div id="requests-grid" class="pages-grid"></div>
+        <p id="requests-load-status" class="list-load-status" aria-live="polite"></p>
+      </div>
     </section>
 
     <section id="view-domains" class="view">
       <h2>🌐 Browse by Domain</h2>
       <div id="domain-list" class="domain-list"></div>
       <div id="domain-pages" class="pages-grid" style="margin-top:1.5rem"></div>
+      <p id="domain-pages-load-status" class="list-load-status" aria-live="polite"></p>
     </section>
 
   </main>
@@ -87,10 +145,115 @@
       <h3>⚙️ Settings</h3>
 
       <div class="settings-section">
+        <h4>Profile</h4>
+        <p class="settings-hint" id="account-name-label">Signed in as: -</p>
+        <label class="settings-field profile-field" for="profile-input">
+          <span>Profile</span>
+          <div class="settings-inline profile-inline">
+            <div class="profile-combobox">
+              <input type="text" id="profile-input" maxlength="64" placeholder="default" autocomplete="off" autocapitalize="none" spellcheck="false" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="profile-dropdown" />
+              <button id="profile-dropdown-toggle" class="profile-arrow-btn" type="button" aria-label="Toggle profile list" aria-expanded="false" aria-controls="profile-dropdown">
+                <span aria-hidden="true">▾</span>
+              </button>
+              <div id="profile-dropdown" class="profile-dropdown" role="listbox" aria-label="Saved profiles"></div>
+            </div>
+            <button id="profile-apply-btn" class="btn-toggle" type="button">Use</button>
+          </div>
+        </label>
+        <p id="profile-status" class="settings-status"></p>
+        <form id="change-password-form" class="settings-field password-change-form is-hidden" autocomplete="off">
+          <span>Change Password</span>
+          <input type="password" id="current-password-input" minlength="8" placeholder="Current password" autocomplete="current-password" required />
+          <input type="password" id="new-password-input" minlength="8" placeholder="New password" autocomplete="new-password" required />
+          <input type="password" id="confirm-new-password-input" minlength="8" placeholder="Confirm new password" autocomplete="new-password" required />
+        </form>
+        <div class="settings-actions">
+          <button id="logout-btn" class="btn-toggle" type="button">Logout</button>
+          <button id="toggle-password-form-btn" class="btn-toggle" type="button" aria-controls="change-password-form" aria-expanded="false">Change Password</button>
+          <button id="change-password-btn" class="btn-toggle is-hidden" type="submit" form="change-password-form">Update Password</button>
+        </div>
+        <p id="password-change-status" class="settings-status password-change-status is-hidden"></p>
+      </div>
+
+      <div class="settings-section">
+        <h4>Privacy</h4>
+        <div class="settings-row">
+          <span>Sharing</span>
+          <button id="sharing-toggle-btn" class="toggle-switch" type="button" role="switch" aria-checked="true" aria-pressed="true" aria-label="Enable sharing">
+            <span class="toggle-switch-track" aria-hidden="true">
+              <span class="toggle-switch-thumb"></span>
+            </span>
+            <span class="toggle-switch-label">On</span>
+          </button>
+        </div>
+        <p id="sharing-status" class="settings-status"></p>
+
+        <form id="share-block-form" class="settings-field" autocomplete="off">
+          <span>Block users from sharing to you</span>
+          <div class="settings-inline share-block-inline">
+            <input
+              type="text"
+              id="share-block-username"
+              maxlength="64"
+              placeholder="Username"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+            <button id="share-block-add-btn" class="btn" type="submit">Block</button>
+          </div>
+        </form>
+        <p id="share-block-status" class="settings-status"></p>
+        <div id="share-block-list" class="share-block-list"></div>
+
+        <div class="settings-section">
+          <h4>Contacts</h4>
+          <form id="contact-form" class="settings-field" autocomplete="off">
+            <span>Add a contact</span>
+            <div class="settings-inline share-block-inline">
+              <input
+                type="text"
+                id="contact-username"
+                maxlength="64"
+                placeholder="Username"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+              />
+              <input
+                type="text"
+                id="contact-alias"
+                maxlength="64"
+                placeholder="Alias (optional)"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                
+              />
+              <button id="contact-add-btn" class="btn" type="submit">Add</button>
+            </div>
+          </form>
+          <p id="contact-status" class="settings-status"></p>
+          <div id="contact-list" class="share-block-list"></div>
+
+          <div style="margin-top:.6rem">
+            <span>Requests</span>
+            <div id="contact-requests-list" class="share-block-list" style="margin-top:.35rem"></div>
+            <p id="contact-requests-status" class="settings-status"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h4>Card Layout</h4>
         <div class="settings-row">
           <span>Theme</span>
-          <button id="theme-mode-btn" class="btn-toggle">☀️ Light</button>
+          <div id="theme-mode-control" class="theme-slider" role="tablist" aria-label="Theme mode">
+            <span class="theme-slider-thumb" aria-hidden="true"></span>
+            <button type="button" class="theme-slider-option" data-theme-value="light" role="tab" aria-selected="false">Light</button>
+            <button type="button" class="theme-slider-option" data-theme-value="dark" role="tab" aria-selected="true">Dark</button>
+            <button type="button" class="theme-slider-option" data-theme-value="oled" role="tab" aria-selected="false">OLED</button>
+          </div>
         </div>
         <div class="settings-row">
           <span>View mode</span>
@@ -98,19 +261,41 @@
         </div>
         <div class="settings-row">
           <span>Date format</span>
-          <button id="date-format-btn" class="btn-toggle">DD.MM.YYYY 24h</button>
+          <div class="settings-inline date-format-inline">
+            <select id="date-format-preset" aria-label="Date format preset">
+              <option value="iso">ISO 24h</option>
+              <option value="eu-24h">Europe 24h</option>
+              <option value="us-12h">US 12h</option>
+              <option value="custom">Custom</option>
+            </select>
+            <input id="date-format-input" type="text" placeholder="YYYY-MM-DD HH:mm:ss" />
+            <button id="date-format-reset-btn" class="btn-toggle" type="button">Reset</button>
+          </div>
+        </div>
+        <div class="date-format-hint-row">
+          <button
+            id="date-format-help-btn"
+            class="btn-toggle"
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="date-format-help-overlay"
+            aria-expanded="false"
+          >
+            Formatting help
+          </button>
         </div>
       </div>
 
       <div class="settings-section">
         <h4>⚡ Auto Tag Rules</h4>
-        <p class="rule-hint">Rules automatically add tags when a page is saved. In URL contains and Title contains, use * for any chars and ? for one char.</p>
+        <p class="rule-hint">Rules automatically add tags when a page is saved. In contains rules, use * for any chars and ? for one char.</p>
         <form id="rule-form">
           <div class="rule-form-row">
             <select id="r-match-type">
               <option value="domain">Domain equals</option>
               <option value="url_contains">URL contains</option>
               <option value="title_contains">Title contains</option>
+              <option value="device_or_origin_contains">Device or origin contains</option>
             </select>
             <input type="text" id="r-pattern" placeholder="e.g. youtube.com" required />
             <span class="rule-arrow">&#8594;</span>
@@ -125,14 +310,57 @@
 
       <div class="settings-section">
         <h4>Data Backup</h4>
-        <p class="settings-hint">Export or import all saves as CSV.</p>
+        <p class="settings-hint">Import CSV expects Project Pocket exports. Use the small arrow for third-party imports.</p>
         <div class="settings-actions">
           <button id="export-csv-btn" class="btn-toggle" type="button">Export CSV</button>
-          <button id="import-csv-btn" class="btn-toggle" type="button">Import CSV</button>
+          <div id="import-split" class="import-split">
+            <button id="import-csv-btn" class="btn-toggle" type="button">Import CSV</button>
+            <button
+              id="import-source-btn"
+              class="btn-toggle"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="import-source-menu"
+              title="Import from another app"
+            >
+              ▾
+            </button>
+            <div id="import-source-menu" class="import-source-menu profile-dropdown" role="menu" hidden>
+              <button class="import-source-option profile-option" type="button" role="menuitem" data-import-source="pocket">Mozilla Pocket (GetPocket)</button>
+            </div>
+          </div>
           <button id="delete-all-btn" class="btn-toggle btn-danger-action" type="button">Delete All Saves</button>
         </div>
         <input type="file" id="import-csv-input" accept=".csv,text/csv" style="display:none" />
         <p id="csv-status" class="settings-status"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date format help overlay -->
+  <div id="date-format-help-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="date-format-help-title">
+    <div class="modal date-format-help-modal">
+      <button id="date-format-help-close" class="modal-close" type="button" aria-label="Close format help">×</button>
+      <h3 id="date-format-help-title">Date Format Tokens</h3>
+      <p class="date-format-help-lead">Build your own format with these tokens. Default example: <code>YYYY-MM-DD HH:mm:ss</code>. Normal words stay literal, for example <code>YYYY-MM-DD HH:mm Uhr</code>.</p>
+      <div class="date-format-help-grid" role="note" aria-label="Date format token help">
+        <code>YYYY</code><span>4-digit year (2026)</span>
+        <code>YY</code><span>2-digit year (26)</span>
+        <code>MM</code><span>month (01-12)</span>
+        <code>M</code><span>month (1-12)</span>
+        <code>DD</code><span>day (01-31)</span>
+        <code>D</code><span>day (1-31)</span>
+        <code>HH</code><span>hour in 24-hour format (00-23)</span>
+        <code>H</code><span>hour in 24-hour format (0-23)</span>
+        <code>hh</code><span>hour in 12-hour format (01-12)</span>
+        <code>h</code><span>hour in 12-hour format (1-12)</span>
+        <code>mm</code><span>minutes (00-59)</span>
+        <code>m</code><span>minutes (0-59)</span>
+        <code>ss</code><span>seconds (00-59)</span>
+        <code>s</code><span>seconds (0-59)</span>
+        <code>A</code><span>AM/PM</span>
+        <code>a</code><span>am/pm</span>
       </div>
     </div>
   </div>
@@ -145,7 +373,15 @@
       <form id="edit-form">
         <label>Title <input type="text" id="e-title" /></label>
         <label>Notes <textarea id="e-notes" rows="3"></textarea></label>
-        <label>Tags <input type="text" id="e-tags" list="tag-suggestions-list" /></label>
+        <label>Tags
+          <div class="profile-combobox tag-combobox">
+            <input type="text" id="e-tags" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="e-tags-dropdown" />
+            <button id="e-tags-dropdown-toggle" class="profile-arrow-btn" type="button" aria-label="Toggle tag suggestions" aria-expanded="false" aria-controls="e-tags-dropdown">
+              <span aria-hidden="true">▾</span>
+            </button>
+            <div id="e-tags-dropdown" class="profile-dropdown" role="listbox" aria-label="Suggested tags"></div>
+          </div>
+        </label>
         <div class="checkbox-row">
           <label class="checkbox-label"><input type="checkbox" id="e-recipe" /> Recipe</label>
           <label class="checkbox-label"><input type="checkbox" id="e-music" /> Music</label>
@@ -153,6 +389,41 @@
         <div class="modal-actions">
           <button type="submit" class="btn-primary">Save</button>
           <button type="button" id="modal-delete" class="btn-danger">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal Overlay -->
+  <div id="confirm-overlay" class="hidden">
+    <div class="modal confirm-modal">
+      <button id="confirm-close" class="modal-close">×</button>
+      <h3 id="confirm-title"></h3>
+      <div id="confirm-message" class="confirm-message"></div>
+      <div id="confirm-input-row" class="confirm-input-row">
+        <input id="confirm-input" type="text" placeholder="Type to confirm..." autocomplete="off" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="confirm-cancel" class="btn">Cancel</button>
+        <button type="button" id="confirm-ok" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Modal Overlay -->
+  <div id="share-overlay" class="hidden">
+    <div class="modal">
+      <button id="share-close" class="modal-close">×</button>
+      <h3>Share Save</h3>
+      <form id="share-form">
+        <label>Share with
+          <input type="text" id="share-username" placeholder="Username" autocomplete="off" minlength="3" maxlength="64" required />
+        </label>
+        <p id="share-status" class="settings-status"></p>
+        <div id="share-contacts-list" class="share-contacts-list"></div>
+        <div class="modal-actions">
+          <button type="button" id="share-cancel" class="btn">Cancel</button>
+          <button type="submit" id="share-submit" class="btn-primary">Share</button>
         </div>
       </form>
     </div>
@@ -177,7 +448,13 @@
           <textarea id="f-notes" rows="3" placeholder="Your notes…"></textarea>
         </label>
         <label>Tags (comma-separated)
-          <input type="text" id="f-tags" list="tag-suggestions-list" placeholder="cooking, tutorial, reference" />
+          <div class="profile-combobox tag-combobox">
+            <input type="text" id="f-tags" placeholder="cooking, tutorial, reference" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="f-tags-dropdown" />
+            <button id="f-tags-dropdown-toggle" class="profile-arrow-btn" type="button" aria-label="Toggle tag suggestions" aria-expanded="false" aria-controls="f-tags-dropdown">
+              <span aria-hidden="true">▾</span>
+            </button>
+            <div id="f-tags-dropdown" class="profile-dropdown" role="listbox" aria-label="Suggested tags"></div>
+          </div>
         </label>
         <div class="checkbox-row">
           <label class="checkbox-label">
@@ -195,8 +472,7 @@
     </div>
   </div>
 
-  <datalist id="tag-suggestions-list"></datalist>
-
+  <script src="app-tabs.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -115,9 +115,14 @@ const analyticsSummary = document.getElementById('analytics-summary');
 const analyticsTrends = document.getElementById('analytics-trends');
 const analyticsTopUsers = document.getElementById('analytics-top-users');
 const analyticsTopDomains = document.getElementById('analytics-top-domains');
+const analyticsUserSpecific = document.getElementById('analytics-user-specific');
 const analyticsLoadStatus = document.getElementById('analytics-load-status');
 const analyticsGeneratedAt = document.getElementById('analytics-generated-at');
 const analyticsRefreshBtn = document.getElementById('analytics-refresh-btn');
+const analyticsTimespanSelect = document.getElementById('analytics-timespan-select');
+const analyticsTrendsRange = document.getElementById('analytics-trends-range');
+const analyticsUserSelect = document.getElementById('analytics-user-select');
+const analyticsUserTimespanSelect = document.getElementById('analytics-user-timespan-select');
 const adminStatus = document.getElementById('admin-status');
 const accountLabel = document.getElementById('admin-account-label');
 const settingsOverlay = document.getElementById('settings-overlay');
@@ -150,6 +155,15 @@ const views = {
   users: document.getElementById('view-users'),
   analytics: document.getElementById('view-analytics'),
 };
+
+const adminViewController = window.ProjectPocketAdminTabs.createAdminViewController({
+  views,
+  storageKey: 'projectPocket.adminView',
+  defaultView: 'users',
+  getViewButtons: () => document.querySelectorAll('.nav-btn[data-view]'),
+  loadUsers,
+  loadAnalytics,
+});
 
 function setAdminStatus(message) {
   if (adminStatus) adminStatus.textContent = message || '';
@@ -397,19 +411,21 @@ function showAdminDialog({
   });
 }
 
-function renderAnalyticsTrendGraph(labels, savesTrendRaw, signupsTrendRaw, shareRequestsRaw = [], shareAcceptedRaw = [], shareDeclinedRaw = []) {
+function renderAnalyticsTrendGraph(labels, savesTrendRaw, signupsTrendRaw, shareRequestsRaw = [], shareAcceptedRaw = [], shareDeclinedRaw = [], options = {}) {
+  const opts = options || {};
+  const hideSignups = Boolean(opts.hideSignups);
+  const width = Number(opts.width || 760);
+  const height = Number(opts.height || 300);
+  const margin = opts.margin || { top: 18, right: 16, bottom: 52, left: 44 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
   const savesTrend = labels.map((_, index) => Math.max(0, Number(savesTrendRaw[index] || 0)));
   const signupsTrend = labels.map((_, index) => Math.max(0, Number(signupsTrendRaw[index] || 0)));
   const shareRequestsTrend = labels.map((_, index) => Math.max(0, Number((shareRequestsRaw || [])[index] || 0)));
   const shareAcceptedTrend = labels.map((_, index) => Math.max(0, Number((shareAcceptedRaw || [])[index] || 0)));
   const shareDeclinedTrend = labels.map((_, index) => Math.max(0, Number((shareDeclinedRaw || [])[index] || 0)));
-  const yMax = Math.max(1, ...savesTrend, ...signupsTrend, ...shareRequestsTrend, ...shareAcceptedTrend, ...shareDeclinedTrend);
-
-  const width = 760;
-  const height = 300;
-  const margin = { top: 18, right: 16, bottom: 52, left: 44 };
-  const chartWidth = width - margin.left - margin.right;
-  const chartHeight = height - margin.top - margin.bottom;
+  const yMax = Math.max(1, ...savesTrend, ...(hideSignups ? [] : signupsTrend), ...shareRequestsTrend, ...shareAcceptedTrend, ...shareDeclinedTrend);
 
   const xForIndex = index => {
     if (labels.length <= 1) return margin.left + (chartWidth / 2);
@@ -451,52 +467,63 @@ function renderAnalyticsTrendGraph(labels, savesTrendRaw, signupsTrendRaw, share
   const shareAcceptedPoints = toPointString(shareAcceptedTrend);
   const shareDeclinedPoints = toPointString(shareDeclinedTrend);
 
-  const savesDots = savesTrend.map((value, index) => [
-    `<circle class="analytics-chart-dot analytics-chart-dot--saves" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="3"></circle>`,
-  ].join('')).join('');
+  const savesDots = savesTrend.map((value, index) => {
+    const isZero = !value;
+    const r = isZero ? 2 : 3;
+    const zeroClass = isZero ? ' analytics-chart-dot--zero' : '';
+    return `<circle class="analytics-chart-dot analytics-chart-dot--saves${zeroClass}" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="${r}" data-index="${index}" data-series="Saves" data-label="${escHtml(labels[index] || '')}" data-value="${value}"></circle>`;
+  }).join('');
 
-  const signupsDots = signupsTrend.map((value, index) => [
-    `<circle class="analytics-chart-dot analytics-chart-dot--signups" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="3"></circle>`,
-  ].join('')).join('');
+  const signupsDots = signupsTrend.map((value, index) => {
+    const isZero = !value;
+    const r = isZero ? 2 : 3;
+    const zeroClass = isZero ? ' analytics-chart-dot--zero' : '';
+    return `<circle class="analytics-chart-dot analytics-chart-dot--signups${zeroClass}" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="${r}" data-index="${index}" data-series="Signups" data-label="${escHtml(labels[index] || '')}" data-value="${value}"></circle>`;
+  }).join('');
 
-  const shareRequestsDots = shareRequestsTrend.map((value, index) => [
-    `<circle class="analytics-chart-dot analytics-chart-dot--requests" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="3"></circle>`,
-  ].join('')).join('');
+  const shareRequestsDots = shareRequestsTrend.map((value, index) => {
+    const isZero = !value;
+    const r = isZero ? 2 : 3;
+    const zeroClass = isZero ? ' analytics-chart-dot--zero' : '';
+    return `<circle class="analytics-chart-dot analytics-chart-dot--requests${zeroClass}" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="${r}" data-index="${index}" data-series="Share Requests" data-label="${escHtml(labels[index] || '')}" data-value="${value}"></circle>`;
+  }).join('');
 
-  const shareAcceptedDots = shareAcceptedTrend.map((value, index) => [
-    `<circle class="analytics-chart-dot analytics-chart-dot--accepts" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="3"></circle>`,
-  ].join('')).join('');
+  const shareAcceptedDots = shareAcceptedTrend.map((value, index) => {
+    const isZero = !value;
+    const r = isZero ? 2 : 3;
+    const zeroClass = isZero ? ' analytics-chart-dot--zero' : '';
+    return `<circle class="analytics-chart-dot analytics-chart-dot--accepts${zeroClass}" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="${r}" data-index="${index}" data-series="Share Accepts" data-label="${escHtml(labels[index] || '')}" data-value="${value}"></circle>`;
+  }).join('');
 
-  const shareDeclinedDots = shareDeclinedTrend.map((value, index) => [
-    `<circle class="analytics-chart-dot analytics-chart-dot--declines" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="3"></circle>`,
-  ].join('')).join('');
+  const shareDeclinedDots = shareDeclinedTrend.map((value, index) => {
+    const isZero = !value;
+    const r = isZero ? 2 : 3;
+    const zeroClass = isZero ? ' analytics-chart-dot--zero' : '';
+    return `<circle class="analytics-chart-dot analytics-chart-dot--declines${zeroClass}" cx="${xForIndex(index).toFixed(2)}" cy="${yForValue(value).toFixed(2)}" r="${r}" data-index="${index}" data-series="Share Declines" data-label="${escHtml(labels[index] || '')}" data-value="${value}"></circle>`;
+  }).join('');
 
-  return [
-    '<div class="analytics-chart-legend">',
-    '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--saves"></span>Saves</span>',
-    '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--signups"></span>Signups</span>',
-    '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--requests"></span>Share Requests</span>',
-    '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--accepts"></span>Share Accepts</span>',
-    '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--declines"></span>Share Declines</span>',
-    '</div>',
-    '<div class="analytics-chart-wrap">',
-    `  <svg class="analytics-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Usage trends chart for saves, signups, and shares">`,
-    `    ${gridLines}`,
-    `    <line class="analytics-chart-axis" x1="${margin.left}" y1="${(margin.top + chartHeight).toFixed(2)}" x2="${(margin.left + chartWidth).toFixed(2)}" y2="${(margin.top + chartHeight).toFixed(2)}"></line>`,
-    `    <polyline class="analytics-chart-line analytics-chart-line--saves" points="${savesPoints}" fill="none"></polyline>`,
-    `    <polyline class="analytics-chart-line analytics-chart-line--signups" points="${signupsPoints}" fill="none"></polyline>`,
-    `    <polyline class="analytics-chart-line analytics-chart-line--requests" points="${shareRequestsPoints}" fill="none"></polyline>`,
-    `    <polyline class="analytics-chart-line analytics-chart-line--accepts" points="${shareAcceptedPoints}" fill="none"></polyline>`,
-    `    <polyline class="analytics-chart-line analytics-chart-line--declines" points="${shareDeclinedPoints}" fill="none"></polyline>`,
-    `    ${savesDots}`,
-    `    ${signupsDots}`,
-    `    ${shareRequestsDots}`,
-    `    ${shareAcceptedDots}`,
-    `    ${shareDeclinedDots}`,
-    `    ${xLabels}`,
-    '  </svg>',
-    '</div>',
-  ].join('');
+  const legendParts = ['<div class="analytics-chart-legend">', '  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--saves"></span>Saves</span>'];
+  if (!hideSignups) legendParts.push('  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--signups"></span>Signups</span>');
+  legendParts.push('  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--requests"></span>Share Requests</span>');
+  legendParts.push('  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--accepts"></span>Share Accepts</span>');
+  legendParts.push('  <span class="analytics-chart-legend-item"><span class="analytics-chart-legend-swatch analytics-chart-legend-swatch--declines"></span>Share Declines</span>');
+  legendParts.push('</div>');
+
+  const svgParts = ['<div class="analytics-chart-wrap">', `  <svg class="analytics-chart-svg" viewBox="0 0 ${width} ${height}" data-labels='${escHtml(JSON.stringify(labels))}' role="img" aria-label="Usage trends chart for saves, signups, and shares">`, `    ${gridLines}`, `    <line class="analytics-chart-axis" x1="${margin.left}" y1="${(margin.top + chartHeight).toFixed(2)}" x2="${(margin.left + chartWidth).toFixed(2)}" y2="${(margin.top + chartHeight).toFixed(2)}"></line>`, `    <polyline class="analytics-chart-line analytics-chart-line--saves" points="${savesPoints}" data-values='${escHtml(JSON.stringify(savesTrend))}' fill="none"></polyline>`];
+  if (!hideSignups) svgParts.push(`    <polyline class="analytics-chart-line analytics-chart-line--signups" points="${signupsPoints}" data-values='${escHtml(JSON.stringify(signupsTrend))}' fill="none"></polyline>`);
+  svgParts.push(`    <polyline class="analytics-chart-line analytics-chart-line--requests" points="${shareRequestsPoints}" data-values='${escHtml(JSON.stringify(shareRequestsTrend))}' fill="none"></polyline>`);
+  svgParts.push(`    <polyline class="analytics-chart-line analytics-chart-line--accepts" points="${shareAcceptedPoints}" data-values='${escHtml(JSON.stringify(shareAcceptedTrend))}' fill="none"></polyline>`);
+  svgParts.push(`    <polyline class="analytics-chart-line analytics-chart-line--declines" points="${shareDeclinedPoints}" data-values='${escHtml(JSON.stringify(shareDeclinedTrend))}' fill="none"></polyline>`);
+  svgParts.push(`    ${savesDots}`);
+  if (!hideSignups) svgParts.push(`    ${signupsDots}`);
+  svgParts.push(`    ${shareRequestsDots}`);
+  svgParts.push(`    ${shareAcceptedDots}`);
+  svgParts.push(`    ${shareDeclinedDots}`);
+  svgParts.push(`    ${xLabels}`);
+  svgParts.push('  </svg>');
+  svgParts.push('</div>');
+
+  return `${legendParts.join('')} ${svgParts.join('')}`;
 }
 
 function renderTopDomainsList(domains) {
@@ -508,28 +535,51 @@ function renderTopDomainsList(domains) {
   if (total <= 0) {
     return '<p class="settings-hint">No domain data available yet.</p>';
   }
+  // Group small slices into "Other" (cutoff: 1%) and build pie/legend
+  const entries = domains.map(d => ({ domain: String(d.domain || d.name || ''), value: Math.max(0, Number(d.save_count || 0)) })).filter(e => e.value > 0);
+  const cutoff = total * 0.01; // 1% cutoff
+  const major = [];
+  let otherCount = 0;
+  for (const e of entries) {
+    if (e.value >= cutoff) major.push(e);
+    else otherCount += e.value;
+  }
+  if (otherCount > 0) major.push({ domain: 'Other', value: otherCount });
+  major.sort((a, b) => b.value - a.value);
 
   const size = 180;
   const cx = size / 2;
   const cy = size / 2;
   const r = Math.floor(size / 2) - 6;
   let startAngle = -Math.PI / 2; // start at 12 o'clock
-
-  const slices = [];
-  const legendItems = [];
   const TAU = Math.PI * 2;
 
-  const palette = domains.map((_, i) => `hsl(${Math.round((i * 360) / domains.length)}, 70%, 55%)`);
+  const palette = major.map((_, i) => `hsl(${Math.round((i * 360) / Math.max(1, major.length))}, 70%, 55%)`);
+  const slices = [];
+  const legendItems = [];
 
-  domains.forEach((entry, idx) => {
-    const value = Math.max(0, Number(entry.save_count || 0));
+  major.forEach((entry, idx) => {
+    const value = Math.max(0, Number(entry.value || 0));
     if (value <= 0) return;
     const angle = (value / total) * TAU;
     const endAngle = startAngle + angle;
     const largeArc = angle > Math.PI ? 1 : 0;
     const mid = startAngle + angle / 2;
+    const color = palette[idx] || '#777';
+    const label = entry.domain || '';
 
-    const startX = cx + r * Math.cos(startAngle);
+    if (Math.abs(angle - TAU) < 1e-6) {
+      // full circle
+      slices.push(`<circle class="analytics-pie-slice" cx="${cx}" cy="${cy}" r="${r}" fill="${color}" data-mid="${mid}" data-value="${value}" data-domain="${escHtml(label)}"></circle>`);
+    } else {
+      const startX = cx + r * Math.cos(startAngle);
+      const startY = cy + r * Math.sin(startAngle);
+      const endX = cx + r * Math.cos(endAngle);
+      const endY = cy + r * Math.sin(endAngle);
+      const d = `M ${cx} ${cy} L ${startX.toFixed(2)} ${startY.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${endX.toFixed(2)} ${endY.toFixed(2)} Z`;
+      slices.push(`<path class="analytics-pie-slice" d="${d}" fill="${color}" data-mid="${mid}" data-value="${value}" data-domain="${escHtml(label)}"></path>`);
+    }
+
     legendItems.push([
       `<div class="analytics-pie-legend-item">`,
       `  <span class="analytics-pie-swatch" style="background:${color}"></span>`,
@@ -541,14 +591,83 @@ function renderTopDomainsList(domains) {
     startAngle = endAngle;
   });
 
-    const svg = [
-      `<svg class="analytics-pie-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Top saved domains pie chart">`,
-      `  ${slices.join('')}`,
-      `</svg>`,
-    ].join('');
-
+  const svg = `<svg class="analytics-pie-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Top saved domains pie chart">${slices.join('')}</svg>`;
   const legend = `<div class="analytics-pie-legend">${legendItems.join('')}</div>`;
   return `<div class="analytics-domains-pie-wrap">${svg}${legend}</div>`;
+}
+
+// Render the user-specific analytics panel (totals, small trend, top domains & tags)
+function renderUserSpecific(data) {
+  if (!analyticsUserSpecific) return;
+  if (!data || !data.username) {
+    analyticsUserSpecific.innerHTML = '<p class="settings-hint">No user selected.</p>';
+    return;
+  }
+
+  if (data.exists === false) {
+    analyticsUserSpecific.innerHTML = `<p class="settings-hint">User not found: ${escHtml(data.username)}</p>`;
+    return;
+  }
+
+  const saves = data.saves || {};
+  const trends = data.trends || {};
+  const topDomains = Array.isArray(data.top_domains) ? data.top_domains : [];
+
+  const html = [
+    '<div class="user-specific-grid">',
+    '  <div class="user-summary">',
+    `    <h4>${escHtml(data.username)}</h4>`,
+    '    <div class="user-stats">',
+    `      <div class="user-stat"><p class="analytics-card-label">Total saves</p><p class="analytics-card-value">${formatCount(saves.total)}</p></div>`,
+    `      <div class="user-stat"><p class="analytics-card-label">Last 7 days</p><p class="analytics-card-value">${formatCount(saves.created_last_7d || 0)}</p></div>`,
+    `      <div class="user-stat"><p class="analytics-card-label">Last 30 days</p><p class="analytics-card-value">${formatCount(saves.created_last_30d || 0)}</p></div>`,
+    `      <div class="user-stat"><p class="analytics-card-label">Last save</p><p class="analytics-card-value">${escHtml(formatDateTime(data.last_save_at))}</p></div>`,
+    `      <div class="user-stat"><p class="analytics-card-label">Last session</p><p class="analytics-card-value">${escHtml(formatDateTime(data.last_session_at))}</p></div>`,
+    '    </div>',
+    '  </div>',
+    '  <div class="user-domains">',
+    '    <h4>Top Domains</h4>',
+    renderTopDomainsList(topDomains),
+    '  </div>',
+    '</div>',
+    '<div class="user-bottom-grid">',
+    '  <div class="user-trend user-trend--large">',
+    '    <h4>Activity</h4>',
+    // Render larger trend for the user-specific panel and hide signups.
+    renderAnalyticsTrendGraph(trends.labels || [], trends.saves || [], [], [], [], [], { hideSignups: true, width: 920, height: 380 }),
+    '  </div>',
+    '</div>',
+  ].join('');
+
+  analyticsUserSpecific.innerHTML = html;
+
+  // Attach interactions for the pie chart and the trend we just inserted.
+  try { attachPieInteractions(analyticsUserSpecific, topDomains); } catch (e) { /* ignore */ }
+  try { attachTrendInteractions(analyticsUserSpecific); } catch (e) { /* ignore */ }
+
+  try { scheduleRelayout(60); } catch (e) { /* ignore */ }
+}
+
+async function loadUserSpecific(username) {
+  if (!analyticsUserSpecific) return;
+  if (!username) {
+    analyticsUserSpecific.innerHTML = '<p class="settings-hint">No user selected.</p>';
+    return;
+  }
+
+  setAnalyticsStatus(`Loading analytics for ${username}...`);
+  try {
+    const span = analyticsUserTimespanSelect ? (analyticsUserTimespanSelect.value || '14d') : (analyticsTimespanSelect ? (analyticsTimespanSelect.value || '14d') : '14d');
+    const data = await apiFetch(`/admin/user-analytics?username=${encodeURIComponent(username)}&span=${encodeURIComponent(span)}`);
+    analyticsCache = analyticsCache || {};
+    analyticsCache.userSpecific = analyticsCache.userSpecific || {};
+    analyticsCache.userSpecific[username] = data;
+    renderUserSpecific(data);
+    if (analyticsUserSelect) analyticsUserSelect.value = username;
+    setAnalyticsStatus('');
+  } catch (err) {
+    setAnalyticsStatus(`Failed to load user analytics: ${err.message}`);
+  }
 }
 
 function attachPieInteractions(container, domains) {
@@ -568,7 +687,7 @@ function attachPieInteractions(container, domains) {
   }
 
   const total = domains.reduce((s, d) => s + Math.max(0, Number(d.save_count || 0)), 0);
-  const paths = svg.querySelectorAll('path.analytics-pie-slice');
+  const paths = svg.querySelectorAll('path.analytics-pie-slice, circle.analytics-pie-slice');
 
   paths.forEach(path => {
     path.style.transition = 'transform 0.18s ease, filter 0.18s ease';
@@ -629,6 +748,325 @@ function attachPieInteractions(container, domains) {
     path.addEventListener('pointerleave', onLeave);
     path.addEventListener('pointercancel', onLeave);
   });
+}
+
+// Attach hover tooltip interactions to trend chart points.
+function attachTrendInteractions(container) {
+  if (!container) return;
+  const svg = container.querySelector('.analytics-chart-svg');
+  if (!svg) return;
+
+  const tooltipFor = container.id || '';
+  let tooltip = document.querySelector(`.analytics-pie-tooltip[data-for="${tooltipFor}"]`);
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'analytics-pie-tooltip';
+    tooltip.setAttribute('data-for', tooltipFor);
+    tooltip.style.display = 'none';
+    document.body.appendChild(tooltip);
+  }
+
+  // Determine day x positions from the primary polyline's points so we
+  // have one x coordinate per label/index even if no circle was drawn.
+  // read labels embedded on the svg (if present)
+  let labelsArrLocal = [];
+  try { labelsArrLocal = JSON.parse(svg.getAttribute('data-labels') || '[]'); } catch (e) { labelsArrLocal = []; }
+
+  const primaryLine = svg.querySelector('.analytics-chart-line--saves') || svg.querySelector('.analytics-chart-line--signups') || svg.querySelector('.analytics-chart-line');
+  const pts = Array.from(svg.querySelectorAll('circle.analytics-chart-dot'));
+
+  const idxXs = [];
+  if (primaryLine && primaryLine.getAttribute) {
+    const ptsAttr = primaryLine.getAttribute('points') || '';
+    const tokens = ptsAttr.trim().split(/\s+/).filter(Boolean);
+    tokens.forEach(tok => {
+      const parts = String(tok).split(',');
+      const x = Number(parts[0] || 0);
+      idxXs.push(isFinite(x) ? x : 0);
+    });
+  }
+
+  // build index map for every day/index (use idxXs length if available, otherwise derive from points present)
+  const idxCount = idxXs.length || (pts.length ? Math.max(...pts.map(p => Number(p.dataset.index || p.getAttribute('data-index') || 0))) + 1 : 0);
+  const idxMap = new Map();
+  for (let i = 0; i < idxCount; i++) idxMap.set(i, { cx: idxXs[i] != null ? idxXs[i] : null, pts: [] });
+  // attach any visible circles to their index entry
+  pts.forEach(pt => {
+    const idx = Number(pt.dataset.index || pt.getAttribute('data-index') || 0);
+    if (!idxMap.has(idx)) idxMap.set(idx, { cx: Number(pt.getAttribute('cx') || 0), pts: [] });
+    idxMap.get(idx).pts.push(pt);
+    // ensure cx is populated when missing
+    if (idxMap.get(idx).cx == null) {
+      const cxAttr = pt.getAttribute('cx');
+      idxMap.get(idx).cx = cxAttr ? Number(cxAttr) : null;
+    }
+  });
+
+  const sortedIdx = Array.from(idxMap.keys()).sort((a, b) => a - b);
+
+  // vertical guide line inside SVG (limit to chart area using grid/axis lines)
+  const ns = 'http://www.w3.org/2000/svg';
+  let vline = svg.querySelector('.analytics-chart-vline');
+  const vb = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+  const svgHeight = (vb && vb.height) ? vb.height : svg.getBoundingClientRect().height || 300;
+  // determine top/bottom of chart area from grid lines / axis
+  let topY = 0;
+  let bottomY = svgHeight;
+  try {
+    const gridLines = Array.from(svg.querySelectorAll('line.analytics-chart-grid-line'))
+      .map(l => Number(l.getAttribute('y1') || l.getAttribute('y2') || 0)).filter(v => isFinite(v));
+    if (gridLines.length) topY = Math.min(...gridLines);
+    const axis = svg.querySelector('line.analytics-chart-axis');
+    if (axis) bottomY = Number(axis.getAttribute('y1') || axis.getAttribute('y2') || bottomY);
+  } catch (e) {}
+
+  if (!vline) {
+    vline = document.createElementNS(ns, 'line');
+    vline.classList.add('analytics-chart-vline');
+    vline.setAttribute('y1', String(topY));
+    vline.setAttribute('y2', String(bottomY));
+    vline.setAttribute('x1', '0');
+    vline.setAttribute('x2', '0');
+    vline.style.display = 'none';
+    svg.appendChild(vline);
+  } else {
+    try { vline.setAttribute('y1', String(topY)); vline.setAttribute('y2', String(bottomY)); } catch (e) {}
+  }
+
+  const seriesDefs = [
+    { name: 'Saves', cls: '.analytics-chart-line--saves' },
+    { name: 'Signups', cls: '.analytics-chart-line--signups' },
+    { name: 'Share Requests', cls: '.analytics-chart-line--requests' },
+    { name: 'Share Accepts', cls: '.analytics-chart-line--accepts' },
+    { name: 'Share Declines', cls: '.analytics-chart-line--declines' },
+  ];
+  let seriesMeta = seriesDefs.map(def => {
+    const line = svg.querySelector(def.cls);
+    let values = [];
+    try { values = JSON.parse(line?.getAttribute('data-values') || '[]'); } catch (e) { values = []; }
+    let color = '#999';
+    try { color = (line ? (window.getComputedStyle(line).stroke || line.getAttribute('stroke')) : '') || color; } catch (e) {}
+    // Build point pairs using exact vertex coords (line.points) when available,
+    // otherwise fall back to getPointAtLength or parsing the points attribute.
+    let ptsPairs = [];
+    if (line && labelsArrLocal.length > 0) {
+      try {
+        if (line.points && typeof line.points.getItem === 'function' && line.points.numberOfItems >= labelsArrLocal.length) {
+          for (let i = 0; i < labelsArrLocal.length; i++) {
+            const p = line.points.getItem(i);
+            ptsPairs.push([Number(p.x || 0), Number(p.y || 0)]);
+          }
+        } else if (typeof line.getTotalLength === 'function') {
+          const total = line.getTotalLength();
+          for (let i = 0; i < labelsArrLocal.length; i++) {
+            const ratio = (labelsArrLocal.length <= 1) ? 0.5 : (i / (labelsArrLocal.length - 1));
+            const p = line.getPointAtLength(total * ratio);
+            ptsPairs.push([Number(p.x || 0), Number(p.y || 0)]);
+          }
+        } else {
+          const ptsAttr = line?.getAttribute('points') || '';
+          ptsPairs = ptsAttr.trim().split(/\s+/).filter(Boolean).map(tok => {
+            const parts = String(tok).split(',');
+            return [Number(parts[0] || 0), Number(parts[1] || 0)];
+          });
+        }
+      } catch (e) { ptsPairs = []; }
+    } else {
+      try {
+        const ptsAttr = line?.getAttribute('points') || '';
+        ptsPairs = ptsAttr.trim().split(/\s+/).filter(Boolean).map(tok => {
+          const parts = String(tok).split(',');
+          return [Number(parts[0] || 0), Number(parts[1] || 0)];
+        });
+      } catch (e) { ptsPairs = []; }
+    }
+
+    return { key: def.name, line, values, color, ptsPairs };
+  });
+
+  // Only include series that are actually present in the rendered SVG.
+  // This prevents showing a Signups row in tooltips when signups are intentionally hidden.
+  try {
+    seriesMeta = seriesMeta.filter(m => !!m.line);
+  } catch (e) {}
+
+  function hideHover() {
+    try { tooltip.style.display = 'none'; } catch (e) {}
+    try { vline.style.display = 'none'; } catch (e) {}
+    pts.forEach(p => { try { p.setAttribute('r', '3'); p.style.transform = ''; } catch (e) {} });
+    // remove any temporary hover dots we created
+    try {
+      const temp = Array.from(svg.querySelectorAll('.analytics-chart-hover-dot'));
+      temp.forEach(t => t.parentNode && t.parentNode.removeChild(t));
+    } catch (e) {}
+    try {
+      const htmlTemp = Array.from(document.querySelectorAll('.analytics-hover-dot'));
+      htmlTemp.forEach(t => t.parentNode && t.parentNode.removeChild(t));
+    } catch (e) {}
+    try {
+      const hoverLayer = svg.querySelector('.analytics-hover-layer');
+      if (hoverLayer && hoverLayer.parentNode) hoverLayer.parentNode.removeChild(hoverLayer);
+    } catch (e) {}
+  }
+
+  function onLeave() { hideHover(); }
+
+  function onMove(e) {
+    // transform client point to SVG coordinate
+    let xSvg = null;
+    try {
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (ctm) {
+        const inv = ctm.inverse();
+        const sp = pt.matrixTransform(inv);
+        xSvg = sp.x;
+      }
+    } catch (err) {
+      // fallback: map by bounding rect and viewBox
+      const rect = svg.getBoundingClientRect();
+      const viewW = (vb && vb.width) ? vb.width : rect.width;
+      xSvg = ((e.clientX - rect.left) / rect.width) * viewW;
+    }
+
+    // find nearest index by cx distance
+    let nearestIdx = null;
+    let bestDist = Infinity;
+    for (const idx of sortedIdx) {
+      const info = idxMap.get(idx);
+      if (info.cx == null) continue;
+      const dist = Math.abs(info.cx - xSvg);
+      if (dist < bestDist) { bestDist = dist; nearestIdx = idx; }
+    }
+    if (nearestIdx == null) return hideHover();
+
+    const info = idxMap.get(nearestIdx);
+    if (!info) return hideHover();
+    const cx = info.cx;
+
+    // Reset all existing visible point markers to their default state
+    try { pts.forEach(p => { p.setAttribute('r', '3'); p.style.transform = ''; }); } catch (e) {}
+
+    // position vertical line at cx (SVG coord)
+    try {
+      vline.setAttribute('x1', String(cx));
+      vline.setAttribute('x2', String(cx));
+      vline.style.display = 'block';
+    } catch (e) {}
+
+    // build tooltip content from seriesMeta (shows zeros even when no circle exists)
+    const circles = info.pts;
+    const label = labelsArrLocal[nearestIdx] || circles[0]?.dataset.label || '';
+    const metricsHtml = seriesMeta.map(m => {
+      const value = Number(m.values[nearestIdx] || 0);
+      const color = m.color || '#999';
+      return `<div class="analytics-trend-metric"><span class="analytics-trend-swatch" style="background:${color};width:10px;height:10px;display:inline-block;border-radius:2px;margin-right:.5rem;flex:0 0 auto"></span><span style="flex:1 1 auto">${escHtml(m.key)}</span><span style="margin-left:.6rem;font-weight:700">${formatCount(value)}</span></div>`;
+    }).join('');
+
+    tooltip.innerHTML = `<strong>${escHtml(label)}</strong><div class="analytics-trend-metrics">${metricsHtml}</div>`;
+    tooltip.style.display = 'block';
+
+    // remove any old temporary hover dots / clear previous hover layer
+    try {
+      const hoverLayerOld = svg.querySelector('.analytics-hover-layer');
+      if (hoverLayerOld) hoverLayerOld.innerHTML = '';
+      const oldLegacy = Array.from(svg.querySelectorAll('.analytics-chart-hover-dot'));
+      oldLegacy.forEach(o => o.parentNode && o.parentNode.removeChild(o));
+    } catch (e) {}
+
+    // create temporary hover markers for series that don't have visible circles
+    try {
+      // compute chart mapping consistent with renderAnalyticsTrendGraph
+      const vbLocal = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+      const svgW = (vbLocal && vbLocal.width) ? vbLocal.width : svg.getBoundingClientRect().width;
+      const svgH = (vbLocal && vbLocal.height) ? vbLocal.height : svg.getBoundingClientRect().height;
+      const marginLocal = { top: 18, right: 16, bottom: 52, left: 44 };
+      const chartW = svgW - marginLocal.left - marginLocal.right;
+      const chartH = svgH - marginLocal.top - marginLocal.bottom;
+      const labelsCount = Math.max(1, labelsArrLocal.length || 1);
+      const xForIndexLocal = idx => labelsCount <= 1 ? (marginLocal.left + chartW / 2) : (marginLocal.left + (idx / (labelsCount - 1)) * chartW);
+      const seriesMax = Math.max(1, ...seriesMeta.map(s => Math.max(0, ...(s.values || []).map(v => Number(v || 0)))));
+      const yForValueLocal = val => marginLocal.top + chartH - (Math.max(0, Number(val || 0)) / seriesMax) * chartH;
+
+      seriesMeta.forEach(m => {
+        try {
+          const hasVisible = !!circles.find(c => String(c.dataset.series || '') === String(m.key || ''));
+          if (hasVisible) return;
+          // prefer exact vertex coords from the polyline if available
+          const pair = (m.ptsPairs || [])[nearestIdx];
+          let px = null; let py = null;
+          if (pair && isFinite(pair[0]) && isFinite(pair[1])) {
+            px = pair[0]; py = pair[1];
+          } else {
+            // fallback to computed positions matching renderAnalyticsTrendGraph
+            const sval = Number((m.values || [])[nearestIdx] || 0);
+            px = xForIndexLocal(nearestIdx);
+            py = yForValueLocal(sval);
+          }
+          if (!isFinite(px) || !isFinite(py)) return;
+
+          // create an SVG marker inside an overlay group (more robust than fixed HTML positioning)
+          try {
+            let hoverLayer = svg.querySelector('.analytics-hover-layer');
+            if (!hoverLayer) {
+              hoverLayer = document.createElementNS(ns, 'g');
+              hoverLayer.classList.add('analytics-hover-layer');
+              svg.appendChild(hoverLayer);
+            }
+
+            const tmp = document.createElementNS(ns, 'circle');
+            tmp.classList.add('analytics-hover-dot');
+            tmp.setAttribute('cx', String(px));
+            tmp.setAttribute('cy', String(py));
+            tmp.setAttribute('r', '4');
+            tmp.setAttribute('fill', m.color || '#999');
+            tmp.setAttribute('stroke', '#ffffff');
+            tmp.setAttribute('stroke-width', '1');
+            hoverLayer.appendChild(tmp);
+          } catch (e) {}
+        } catch (e) {}
+      });
+    } catch (e) {}
+
+    // position tooltip centered on the vertical guide (clamped to viewport)
+    const rect = svg.getBoundingClientRect();
+    let clientX;
+    try {
+      // map SVG user-space x (cx) to screen/client coordinates using CTM
+      const pt = svg.createSVGPoint();
+      pt.x = cx; pt.y = 0;
+      const screenCTM = svg.getScreenCTM();
+      if (screenCTM) {
+        const transformed = pt.matrixTransform(screenCTM);
+        clientX = transformed.x;
+      } else {
+        const viewW = (vb && vb.width) ? vb.width : rect.width;
+        clientX = rect.left + (cx / viewW) * rect.width;
+      }
+    } catch (err) {
+      const viewW = (vb && vb.width) ? vb.width : rect.width;
+      clientX = rect.left + (cx / viewW) * rect.width;
+    }
+
+    const tRect = tooltip.getBoundingClientRect();
+    const margin = 8;
+    // center tooltip horizontally above the guide
+    let left = clientX - (tRect.width / 2);
+    if (left < margin) left = margin;
+    if (left + tRect.width + margin > window.innerWidth) left = Math.max(margin, window.innerWidth - tRect.width - margin);
+    // position tooltip near top of svg; if it would overflow bottom, shift up
+    let top = rect.top + 8;
+    if (top + tRect.height + margin > window.innerHeight) top = Math.max(margin, rect.bottom - tRect.height - margin);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+
+    // highlight circles for this day
+    circles.forEach(c => { try { c.setAttribute('r', '5'); c.style.transform = 'scale(1.1)'; } catch (e) {} });
+  }
+
+  svg.addEventListener('pointermove', onMove);
+  svg.addEventListener('pointerleave', onLeave);
 }
 
 function refreshDateFormattedContent() {
@@ -695,13 +1133,7 @@ async function apiFetch(path, opts = {}) {
 }
 
 function activateView(viewName, sourceBtn = null) {
-  if (!views[viewName]) return;
-
-  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => btn.classList.remove('active'));
-  if (sourceBtn) sourceBtn.classList.add('active');
-
-  Object.values(views).forEach(view => view?.classList.remove('active'));
-  views[viewName].classList.add('active');
+  adminViewController.activateView(viewName, sourceBtn);
 }
 
 function renderUsers(users) {
@@ -848,13 +1280,14 @@ function renderUsers(users) {
             method: 'POST',
           });
           setUsersStatus('');
-          const tempPassword = escHtml(String(response?.temporary_password || ''));
+          // For security reasons the backend does not return the temporary password in the API response.
+          // Inform the admin that a temporary password was generated and instruct to deliver it securely out-of-band.
           await showAdminDialog({
             title: 'Temporary Password Generated',
             messageHtml: [
-              `<p>Temporary password for <strong>${escHtml(username)}</strong>:</p>`,
-              `<p class="admin-temp-password"><code>${tempPassword}</code></p>`,
-              '<p>User must change password on next login.</p>',
+              `<p>A temporary password has been generated for <strong>${escHtml(username)}</strong>.</p>`,
+              '<p class="settings-hint">For security reasons the temporary password is not shown here. Deliver the temporary password to the user using a secure out-of-band method (for example, a phone call or an encrypted message).</p>',
+              '<p><em>User will be required to change password on next login.</em></p>',
             ].join(''),
             okText: 'Close',
             danger: false,
@@ -974,10 +1407,27 @@ async function loadUsers() {
     const users = await apiFetch('/users');
     usersCache = Array.isArray(users) ? users : [];
     renderUsers(usersCache);
+    // populate analytics user-select for switching user-specific stats
+    try { populateAnalyticsUserSelect(usersCache); } catch (e) { /* ignore */ }
     setUsersStatus('');
   } catch (err) {
     setUsersStatus(`Failed to load users: ${err.message}`);
   }
+}
+
+function populateAnalyticsUserSelect(users) {
+  if (!analyticsUserSelect) return;
+  const list = Array.isArray(users) && users.length ? users : (Array.isArray(usersCache) ? usersCache : []);
+  const current = analyticsUserSelect.value || '';
+  const opts = ['<option value="">Select user…</option>'];
+  list.slice().sort((a, b) => String((a.username||'')).localeCompare(String((b.username||'')))).forEach(u => {
+    const name = String(u.username || '');
+    opts.push(`<option value="${escHtml(name)}">${escHtml(name)}</option>`);
+  });
+  analyticsUserSelect.innerHTML = opts.join('');
+  if (current && Array.from(analyticsUserSelect.options).some(o => o.value === current)) analyticsUserSelect.value = current;
+  // If a custom select enhancer is present, sync it so the visible widget updates.
+  try { if (typeof syncAdminCustomSelect === 'function') syncAdminCustomSelect('analytics-user-select'); } catch (e) {}
 }
 
 function renderAnalytics(data) {
@@ -996,11 +1446,17 @@ function renderAnalytics(data) {
     { label: 'Admins', value: users.admins },
     { label: 'Active Sessions', value: sessions.active },
     { label: 'Saves (Total)', value: saves.total },
+    { label: 'Total Music', value: saves.music },
+    { label: 'Total Recipes', value: saves.recipes },
     { label: 'Unique Domains', value: saves.unique_domains },
     { label: 'Accepted Shares', value: (saves.accepted_shares != null) ? saves.accepted_shares : saves.shared_total },
     { label: 'Declined Shares', value: saves.declined_shares },
     { label: 'Saves (24h)', value: saves.created_last_24h },
+    { label: 'Music (24h)', value: saves.music_last_24h },
+    { label: 'Recipes (24h)', value: saves.recipes_last_24h },
     { label: 'Saves (7d)', value: saves.created_last_7d },
+    { label: 'Music (7d)', value: saves.music_last_7d },
+    { label: 'Recipes (7d)', value: saves.recipes_last_7d },
     { label: 'Pending Shares', value: saves.pending_share_requests },
     { label: 'New Signups (30d)', value: users.signups_last_30d },
   ];
@@ -1023,6 +1479,7 @@ function renderAnalytics(data) {
     analyticsTrends.innerHTML = '<p class="settings-hint">No trend data available yet.</p>';
   } else {
     analyticsTrends.innerHTML = renderAnalyticsTrendGraph(labels, savesTrend, signupsTrend, shareRequestsTrend, shareAcceptedTrend, shareDeclinedTrend);
+    try { attachTrendInteractions(analyticsTrends); } catch (e) { /* ignore */ }
   }
 
   if (!topUsers.length) {
@@ -1040,7 +1497,7 @@ function renderAnalytics(data) {
 
         return [
           '<tr>',
-          `  <td>${escHtml(entry.username || '-')}</td>`,
+          `  <td><span class="analytics-user-name">${escHtml(entry.username || '-')}</span></td>`,
           `  <td>${escHtml(role)}</td>`,
           `  <td>${escHtml(statuses.join(', ') || 'Active')}</td>`,
           `  <td>${formatCount(entry.save_count)}</td>`,
@@ -1074,6 +1531,8 @@ function renderAnalytics(data) {
     }
   }
 
+  // Top users are shown for reference only (no click/auto-load behavior).
+
   if (analyticsGeneratedAt) {
     analyticsGeneratedAt.textContent = `Last updated: ${formatDateTime(data?.generated_at)}`;
   }
@@ -1082,14 +1541,79 @@ function renderAnalytics(data) {
   try { scheduleRelayout(60); } catch (e) { /* noop */ }
 }
 
+// Render only the trends portion of analytics into the trends panel.
+function renderAnalyticsTrends(data) {
+  if (!analyticsTrends) return;
+
+  const trends = data?.trends || {};
+  const labels = Array.isArray(trends.labels) ? trends.labels : [];
+  const savesTrend = Array.isArray(trends.saves) ? trends.saves : [];
+  const signupsTrend = Array.isArray(trends.signups) ? trends.signups : [];
+  const shareRequestsTrend = Array.isArray(trends.share_requests) ? trends.share_requests : [];
+  const shareAcceptedTrend = Array.isArray(trends.share_accepted) ? trends.share_accepted : [];
+  const shareDeclinedTrend = Array.isArray(trends.share_declined) ? trends.share_declined : [];
+
+  if (!labels.length) {
+    analyticsTrends.innerHTML = '<p class="settings-hint">No trend data available yet.</p>';
+  } else {
+    analyticsTrends.innerHTML = renderAnalyticsTrendGraph(labels, savesTrend, signupsTrend, shareRequestsTrend, shareAcceptedTrend, shareDeclinedTrend);
+    try { attachTrendInteractions(analyticsTrends); } catch (e) { /* ignore */ }
+  }
+
+  if (analyticsGeneratedAt) analyticsGeneratedAt.textContent = `Last updated: ${formatDateTime(data?.generated_at)}`;
+  try { scheduleRelayout(60); } catch (e) { /* noop */ }
+}
+
+// Fetch and apply only the trends data for a chosen span (does not re-render summaries/tables).
+async function loadAnalyticsTrends(span) {
+  if (!analyticsTrends) return;
+  setAnalyticsStatus('Loading analytics...');
+  try {
+    const selectedSpan = span || (analyticsTimespanSelect ? (analyticsTimespanSelect.value || '14d') : '14d');
+    const data = await apiFetch(`/admin/analytics?span=${encodeURIComponent(selectedSpan)}`);
+    // keep cache in sync for other UI bits if present
+    analyticsCache = analyticsCache || {};
+    analyticsCache.trends = data.trends || {};
+
+    if (analyticsTrendsRange) {
+      const spanLabels = {
+        'all': 'All time',
+        '365d': 'Last year',
+        '30d': 'Last month (30 days)',
+        '14d': 'Last 14 days',
+        '7d': 'Last week (7 days)',
+        '24h': 'Last 24 hours',
+      };
+      analyticsTrendsRange.textContent = `(${spanLabels[selectedSpan] || selectedSpan})`;
+    }
+
+    renderAnalyticsTrends(analyticsCache);
+    setAnalyticsStatus('');
+  } catch (err) {
+    setAnalyticsStatus(`Failed to load analytics trends: ${err.message}`);
+  }
+}
+
 async function loadAnalytics() {
   if (!analyticsSummary || !analyticsTrends || !analyticsTopUsers) return;
 
   setAnalyticsStatus('Loading analytics...');
 
   try {
-    const data = await apiFetch('/admin/analytics');
+    const selectedSpan = analyticsTimespanSelect ? (analyticsTimespanSelect.value || '14d') : '14d';
+    const data = await apiFetch(`/admin/analytics?span=${encodeURIComponent(selectedSpan)}`);
     analyticsCache = data || {};
+    if (analyticsTrendsRange) {
+      const spanLabels = {
+        'all': 'All time',
+        '365d': 'Last year',
+        '30d': 'Last month (30 days)',
+        '14d': 'Last 14 days',
+        '7d': 'Last week (7 days)',
+        '24h': 'Last 24 hours',
+      };
+      analyticsTrendsRange.textContent = `(${spanLabels[selectedSpan] || selectedSpan})`;
+    }
     renderAnalytics(analyticsCache);
     setAnalyticsStatus('');
   } catch (err) {
@@ -1146,6 +1670,11 @@ async function bootstrapAdminSession() {
     localStorage.setItem('authIsAdmin', 'true');
     updateAccountNameLabel();
 
+    const activeView = adminViewController.getActiveViewName();
+    if (activeView === 'analytics') {
+      await loadAnalytics();
+      return;
+    }
     await loadUsers();
   } catch (err) {
     clearAuthSession();
@@ -1154,42 +1683,64 @@ async function bootstrapAdminSession() {
   }
 }
 
-document.querySelectorAll('.nav-btn[data-view]').forEach(button => {
-  button.addEventListener('click', async () => {
-    const viewName = button.dataset.view;
-    activateView(viewName, button);
-
-    if (viewName === 'users') {
-      await loadUsers();
-      return;
-    }
-
-    if (viewName === 'analytics') {
-      await loadAnalytics();
-    }
-  });
-});
+adminViewController.bindNavigation();
+adminViewController.hydrateFromStorage();
 
 analyticsRefreshBtn?.addEventListener('click', () => {
   void loadAnalytics();
 });
+// When the timespan selector changes, reload only the trends for the chosen range.
+analyticsTimespanSelect?.addEventListener('change', () => {
+  const span = analyticsTimespanSelect?.value || '14d';
+  void loadAnalyticsTrends(span);
+});
+
+// If a user-specific timespan selector exists, keep it in sync with the global selector
+if (analyticsUserTimespanSelect && analyticsTimespanSelect) {
+  try { analyticsUserTimespanSelect.value = analyticsTimespanSelect.value || '14d'; } catch (e) {}
+}
+
+// Reload the user-specific analytics when the user-timespan changes
+analyticsUserTimespanSelect?.addEventListener('change', () => {
+  const uname = analyticsUserSelect?.value || '';
+  if (uname) {
+    void loadUserSpecific(uname);
+  }
+});
+
+// User select change/clear handlers
+analyticsUserSelect?.addEventListener('change', () => {
+  const uname = analyticsUserSelect.value || '';
+  if (uname) {
+    void loadUserSpecific(uname);
+  } else {
+    if (analyticsUserSpecific) analyticsUserSpecific.innerHTML = '<p class="settings-hint">No user selected.</p>';
+  }
+});
+
 
 // --- Editable panels grid (layout persistence, edit mode, drag/reorder, span controls) ---
 const panelsGrid = document.getElementById('analytics-panels-grid');
 const layoutStorageKey = 'analyticsLayout_v1';
 const editLayoutBtn = document.getElementById('analytics-edit-layout-btn');
 // maximum number of rows a panel may span (keeps rows compact)
-const MAX_PANEL_ROW_SPAN = 2;
+const MAX_PANEL_ROW_SPAN = 3;
 // base row height in pixels (used for snapping vertical resizes)
 const BASE_ROW_HEIGHT = 240;
 
 function getDefaultLayout() {
   return {
-    order: ['panel-trends', 'panel-top-users', 'panel-top-domains'],
+    order: [
+      'panel-trends',
+      'panel-top-users',
+      'panel-top-domains',
+      'panel-user-specific',
+    ],
     spans: {
       'panel-trends': { col: 1, row: 1 },
       'panel-top-users': { col: 1, row: 1 },
       'panel-top-domains': { col: 1, row: 1 },
+      'panel-user-specific': { col: 1, row: 1 },
     },
   };
 }
@@ -1227,209 +1778,79 @@ function saveLayout(layout) {
   }
 }
 
-function applyLayout(layout) {
-  if (!panelsGrid || !layout) return;
-  const columnsPerRow = 3;
+function applyLayout(/* layout */) {
+  // Static 3-column layout used for admin analytics per user request.
+  // Left area: `panel-trends` spans columns 1-2 and rows 1-2.
+  // Right area: `panel-top-users` at row 1, column 3; `panel-top-domains` at row 2, column 3.
+  if (!panelsGrid) return;
 
-  // collect panels
-  const panelsById = {};
-  layout.order.forEach(id => {
-    const el = document.querySelector(`[data-panel-id="${id}"]`);
-    if (el) panelsById[id] = el;
+  // Ensure the container uses the CSS grid defined in stylesheet
+  panelsGrid.classList.remove('edit-mode', 'editing', 'drag-over');
+  panelsGrid.style.position = panelsGrid.style.position || '';
+
+  const trends = document.querySelector('[data-panel-id="panel-trends"]');
+  const topUsers = document.querySelector('[data-panel-id="panel-top-users"]');
+  const topDomains = document.querySelector('[data-panel-id="panel-top-domains"]');
+
+  // Clear any leftover edit-mode controls or inline absolute positioning
+  panelsGrid.querySelectorAll('.panel-edit-controls, .panel-resizer').forEach(el => el.remove());
+  panelsGrid.querySelectorAll('.analytics-panel').forEach(p => {
+    p.removeAttribute('draggable');
+    p.style.position = '';
+    p.style.left = '';
+    p.style.top = '';
+    p.style.width = '';
+    p.style.height = '';
+    p.style.zIndex = '';
+    p.style.pointerEvents = '';
+    p.style.gridColumn = '';
+    p.style.gridRow = '';
+    p.dataset.colSpan = '';
+    p.dataset.rowSpan = '';
+    p.dataset.rowStart = '';
+    p.dataset.startCol = '';
   });
 
-  // occupancy map for packing (rows x columns)
-  const occupancy = [];
-  function ensureRowCount(n) {
-    while (occupancy.length < n) occupancy.push(new Array(columnsPerRow).fill(false));
+  // Apply explicit grid placements
+  if (trends) {
+    trends.style.gridColumn = '1 / span 2';
+    trends.style.gridRow = '1 / span 2';
+  }
+  if (topUsers) {
+    topUsers.style.gridColumn = '3 / span 1';
+    topUsers.style.gridRow = '1 / span 1';
+  }
+  if (topDomains) {
+    topDomains.style.gridColumn = '3 / span 1';
+    topDomains.style.gridRow = '2 / span 1';
   }
 
-  const placements = {};
-  let maxRows = 0;
-
-  layout.order.forEach(id => {
-    const el = panelsById[id];
-    if (!el) return;
-    const spanDef = (layout.spans && layout.spans[id]) || { col: 1, row: 1 };
-    const colSpan = Math.max(1, Math.min(columnsPerRow, Number(spanDef.col || 1)));
-    const rowSpan = Math.max(1, Math.min(MAX_PANEL_ROW_SPAN, Number(spanDef.row || 1)));
-
-    let placed = false;
-    for (let r = 0; !placed; r++) {
-      ensureRowCount(r + rowSpan);
-      for (let c = 0; c <= columnsPerRow - colSpan; c++) {
-        let ok = true;
-        for (let rr = r; rr < r + rowSpan; rr++) {
-          ensureRowCount(rr + 1);
-          for (let cc = c; cc < c + colSpan; cc++) {
-            if (occupancy[rr][cc]) { ok = false; break; }
-          }
-          if (!ok) break;
-        }
-        if (!ok) continue;
-        // mark occupied
-        for (let rr = r; rr < r + rowSpan; rr++) {
-          for (let cc = c; cc < c + colSpan; cc++) occupancy[rr][cc] = true;
-        }
-        placements[id] = { rowStart: r + 1, colStart: c + 1, colSpan, rowSpan };
-        maxRows = Math.max(maxRows, r + rowSpan);
-        placed = true;
-        break;
-      }
-    }
-  });
-
-  // clear grid container
-  panelsGrid.innerHTML = '';
-  panelsGrid.style.position = panelsGrid.style.position || 'relative';
-  // determine whether any panel spans multiple rows; if not, render each row as its own grid so
-  // row-level column counts can adapt (two panels will each be 50% when a row has only two cols).
-  const placedIds = Object.keys(placements).sort((a, b) => {
-    const A = placements[a]; const B = placements[b];
-    if (A.rowStart !== B.rowStart) return A.rowStart - B.rowStart;
-    return A.colStart - B.colStart;
-  });
-
-  // Always render per-row grids; handle multi-row spans by placing them into
-  // an absolute 'spanning' layer so rows' column widths remain independent.
-  const rowsMeta = Object.create(null);
-  for (let r = 1; r <= maxRows; r++) {
-    const rowAllItems = placedIds.filter(id => placements[id].rowStart === r);
-    if (!rowAllItems.length) continue;
-
-    const totalCols = rowAllItems.reduce((s, id) => s + (placements[id].colSpan || 1), 0) || 1;
-    const rowEl = document.createElement('div');
-    rowEl.className = 'analytics-row';
-    rowEl.style.gridColumn = '1 / -1';
-    rowEl.style.display = 'grid';
-    rowEl.style.gridTemplateColumns = `repeat(${totalCols}, 1fr)`;
-    rowEl.style.setProperty('--cols', String(totalCols));
-    rowEl.style.setProperty('--panel-row-height', `${BASE_ROW_HEIGHT}px`);
-    rowEl.style.gridAutoRows = `${BASE_ROW_HEIGHT}px`;
-
-    // compute start column for each panel in this row (including spanning panels)
-    const itemsMeta = [];
-    let cum = 0;
-    rowAllItems.forEach(id => {
-      const p = placements[id];
-      const startCol = cum + 1;
-      itemsMeta.push({ id, startCol, colSpan: p.colSpan });
-      cum += p.colSpan;
-    });
-
-    // append only non-spanning items into the row grid at their computed start
-    itemsMeta.forEach(meta => {
-      const p = placements[meta.id];
-      const el = panelsById[meta.id];
-      if (!el) return;
-      if (p.rowSpan === 1) {
-        el.style.position = '';
-        el.style.left = '';
-        el.style.top = '';
-        el.style.width = '';
-        el.style.height = '';
-        el.style.zIndex = '';
-        el.style.pointerEvents = '';
-        el.style.gridColumn = `${meta.startCol} / span ${meta.colSpan}`;
-        el.style.gridRow = `1 / span 1`;
-        el.dataset.colSpan = String(meta.colSpan);
-        el.dataset.rowSpan = '1';
-        el.dataset.rowStart = String(placements[meta.id].rowStart);
-        el.dataset.startCol = String(meta.startCol);
-        rowEl.appendChild(el);
-      }
-    });
-
-    panelsGrid.appendChild(rowEl);
-    rowsMeta[r] = { rowEl, totalCols, itemsMeta };
+  // Place the single user-specific panel below the main panels (spans full width)
+  const userPanel = document.querySelector('[data-panel-id="panel-user-specific"]');
+  if (userPanel) {
+    userPanel.style.gridColumn = '1 / span 3';
+    userPanel.style.gridRow = '3 / span 3';
   }
 
-  // create a spanning layer for panels that occupy multiple rows
-  const spanningLayer = document.createElement('div');
-  spanningLayer.className = 'analytics-spanning-layer';
-  spanningLayer.style.position = 'absolute';
-  spanningLayer.style.left = '0';
-  spanningLayer.style.top = '0';
-  spanningLayer.style.width = '100%';
-  spanningLayer.style.height = '100%';
-  spanningLayer.style.pointerEvents = 'none';
-  panelsGrid.appendChild(spanningLayer);
+  // Expose simple placement info for debugging
+  try {
+    window.__lastPlacements = {
+      'panel-trends': { rowStart: 1, colStart: 1, colSpan: 2, rowSpan: 2 },
+      'panel-top-users': { rowStart: 1, colStart: 3, colSpan: 1, rowSpan: 1 },
+      'panel-top-domains': { rowStart: 2, colStart: 3, colSpan: 1, rowSpan: 1 },
+      'panel-user-specific': { rowStart: 3, colStart: 1, colSpan: 3, rowSpan: 3 },
+    };
+    window.__lastLayout = { order: [
+      'panel-trends', 'panel-top-users', 'panel-top-domains', 'panel-user-specific'
+    ] };
+    console.log('Applied static analytics layout', window.__lastPlacements);
+  } catch (e) { /* ignore */ }
 
-  // measure container once
-  const panelsRect = panelsGrid.getBoundingClientRect();
-
-  // place spanning panels absolutely based on the top row's column layout
-  placedIds.forEach(id => {
-    const p = placements[id];
-    if (p.rowSpan <= 1) return; // already handled
-    const el = panelsById[id];
-    if (!el) return;
-
-    const rowMeta = rowsMeta[p.rowStart];
-    if (!rowMeta) {
-      // fallback: append full-width into spanning layer
-      el.style.position = 'absolute';
-      el.style.left = '0';
-      el.style.top = '0';
-      el.style.width = '100%';
-      el.style.height = `${p.rowSpan * BASE_ROW_HEIGHT}px`;
-      el.style.pointerEvents = 'auto';
-      el.style.zIndex = 3;
-      spanningLayer.appendChild(el);
-      return;
-    }
-
-    const { rowEl, totalCols, itemsMeta } = rowMeta;
-    const meta = itemsMeta.find(m => m.id === id);
-    if (!meta) {
-      // safety fallback
-      spanningLayer.appendChild(el);
-      return;
-    }
-
-    const rowRect = rowEl.getBoundingClientRect();
-    const rowStyle = getComputedStyle(rowEl);
-    const gapX = parseFloat(rowStyle.columnGap || rowStyle.gap || '0') || 0;
-    const colWidth = Math.max(0, (rowRect.width - Math.max(0, (totalCols - 1) * gapX)) / totalCols);
-
-    const left = (rowRect.left - panelsRect.left) + (meta.startCol - 1) * (colWidth + gapX);
-    const width = Math.max(0, meta.colSpan * colWidth + Math.max(0, (meta.colSpan - 1) * gapX));
-
-    // compute vertical span from top of start row to bottom of end row
-    const startRowRect = rowRect;
-    const endRowIndex = p.rowStart + p.rowSpan - 1;
-    const endRowMeta = rowsMeta[endRowIndex];
-    const endRowRect = endRowMeta ? endRowMeta.rowEl.getBoundingClientRect() : null;
-    const top = startRowRect.top - panelsRect.top;
-    const bottom = endRowRect ? (endRowRect.bottom - panelsRect.top) : (top + p.rowSpan * BASE_ROW_HEIGHT);
-    const height = Math.max(0, bottom - top - 0);
-
-    // assign placement metadata and apply absolute placement
-    el.style.position = 'absolute';
-    el.dataset.rowStart = String(p.rowStart);
-    el.dataset.startCol = String(meta.startCol);
-    el.style.left = `${Math.round(left)}px`;
-    el.style.top = `${Math.round(top)}px`;
-    el.style.width = `${Math.round(width)}px`;
-    el.style.height = `${Math.round(height)}px`;
-    el.style.pointerEvents = 'auto';
-    el.style.zIndex = 3;
-    // clear grid placement hooks
-    el.style.gridColumn = '';
-    el.style.gridRow = '';
-    el.dataset.colSpan = String(p.colSpan);
-    el.dataset.rowSpan = String(p.rowSpan);
-
-    spanningLayer.appendChild(el);
-  });
-
-  // update debug overlay immediately after layout changes
-  try { if (window.__analyticsDebugEnabled) updateDebugOverlay(layout); } catch (e) {}
-
+  try { if (window.__analyticsDebugEnabled) updateDebugOverlay(window.__lastLayout); } catch (e) {}
 }
 
-// Debug overlay utilities (non-invasive). Toggle with the Debug Layout button.
-  window.__analyticsDebugEnabled = localStorage.getItem('analytics_debug') === '1';
+// Debug overlay utilities (non-invasive). Toggle was removed from UI; keep overlay disabled by default.
+  window.__analyticsDebugEnabled = false;
   let __analyticsDebugOverlay = null;
   function createDebugOverlay() {
     if (!panelsGrid || __analyticsDebugOverlay) return;
@@ -1528,6 +1949,226 @@ function scheduleRelayout(delay = 100) {
     }
   }, delay);
 }
+
+// --- Admin custom-select enhancer (lightweight copy of app.js's enhancer) ---
+const adminCustomSelectControllers = new Map();
+
+function closeAllAdminCustomSelects(exceptId = '') {
+  adminCustomSelectControllers.forEach((controller, id) => {
+    if (exceptId && id === exceptId) return;
+    try { controller.close(); } catch (e) {}
+  });
+}
+
+function enhanceAdminSelect(selectEl) {
+  if (!selectEl || adminCustomSelectControllers.has(selectEl.id)) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'custom-select';
+  wrapper.dataset.selectId = selectEl.id || '';
+
+  // Autosize analytics selects (keep trigger/menu as wide as their widest option)
+  const AUTOSIZE_IDS = new Set(['analytics-timespan-select', 'analytics-user-select', 'analytics-user-timespan-select']);
+  if (AUTOSIZE_IDS.has(selectEl.id)) wrapper.classList.add('autosize');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'custom-select-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+
+  const label = document.createElement('span');
+  label.className = 'custom-select-label';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'custom-select-arrow';
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = '▾';
+
+  trigger.append(label, arrow);
+
+  const menu = document.createElement('div');
+  menu.className = 'custom-select-menu';
+  menu.setAttribute('role', 'listbox');
+
+  wrapper.append(trigger, menu);
+  selectEl.classList.add('select-native-hidden');
+  selectEl.after(wrapper);
+
+  let options = [];
+  let activeIndex = -1;
+
+  const syncLabel = () => {
+    const selected = selectEl.selectedOptions?.[0] || selectEl.options[selectEl.selectedIndex];
+    label.textContent = selected?.textContent || '';
+  };
+
+  const getOptions = () => Array.from(selectEl.options || []);
+
+  const renderMenu = () => {
+    options = getOptions();
+    if (activeIndex >= options.length) activeIndex = options.length - 1;
+    menu.innerHTML = '';
+    options.forEach((opt, idx) => {
+      const optionBtn = document.createElement('button');
+      optionBtn.type = 'button';
+      optionBtn.className = 'custom-select-option';
+      optionBtn.textContent = opt.textContent || '';
+      optionBtn.dataset.value = opt.value;
+      optionBtn.setAttribute('role', 'option');
+      const isSelected = selectEl.value === opt.value;
+      if (isSelected) {
+        optionBtn.classList.add('selected');
+        optionBtn.setAttribute('aria-selected', 'true');
+      } else {
+        optionBtn.setAttribute('aria-selected', 'false');
+      }
+      if (idx === activeIndex) optionBtn.classList.add('active');
+      menu.appendChild(optionBtn);
+    });
+  };
+  // Defer to a centralized measurement routine for autosize selects.
+  if (wrapper.classList.contains('autosize')) {
+    try { measureAndApplySelectWidth(selectEl.id); } catch (e) { /* ignore */ }
+  }
+
+  const close = () => {
+    wrapper.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+  };
+
+  const open = () => {
+    closeAllAdminCustomSelects(selectEl.id);
+    renderMenu();
+    wrapper.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    // Do not re-measure on open to avoid flicker/animations; width is
+    // measured on init and when options change via `syncAdminCustomSelect`.
+  };
+
+  const syncVisibility = () => {
+    const hidden = selectEl.style.display === 'none';
+    wrapper.style.display = hidden ? 'none' : '';
+    if (hidden) close();
+  };
+
+  const syncFromNative = () => {
+    syncLabel();
+    syncVisibility();
+    if (wrapper.classList.contains('open')) renderMenu();
+  };
+
+  const commitValue = (value) => {
+    if (selectEl.value === value) { close(); return; }
+    selectEl.value = value;
+    syncFromNative();
+    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    close();
+  };
+
+  trigger.addEventListener('click', () => {
+    if (wrapper.classList.contains('open')) { close(); return; }
+    open();
+  });
+
+  trigger.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!wrapper.classList.contains('open')) { open(); }
+      if (!options.length) return;
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      activeIndex = (activeIndex + delta + options.length) % options.length;
+      renderMenu();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (!wrapper.classList.contains('open')) { open(); return; }
+      if (activeIndex >= 0 && options[activeIndex]) commitValue(options[activeIndex].value);
+    }
+  });
+
+  menu.addEventListener('mousedown', e => { e.preventDefault(); });
+  menu.addEventListener('click', e => {
+    const optionBtn = e.target.closest('.custom-select-option');
+    if (!optionBtn) return;
+    commitValue(optionBtn.dataset.value || '');
+  });
+
+  selectEl.addEventListener('change', syncFromNative);
+  adminCustomSelectControllers.set(selectEl.id, { close, open, syncFromNative });
+  syncFromNative();
+}
+
+// Measure longest option text for a select and apply a fixed width to its
+// custom wrapper/menu when in `autosize` mode. Uses canvas text metrics
+// so it works even when the menu isn't rendered in the DOM.
+function measureAndApplySelectWidth(selectId) {
+  try {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const wrapper = sel.nextElementSibling;
+    if (!wrapper || !wrapper.classList || !wrapper.classList.contains('custom-select') || !wrapper.classList.contains('autosize')) return;
+    const trigger = wrapper.querySelector('.custom-select-trigger');
+    const menu = wrapper.querySelector('.custom-select-menu');
+    if (!trigger) return;
+
+    const comp = getComputedStyle(trigger);
+    const font = `${comp.fontWeight} ${comp.fontSize} ${comp.fontFamily}`;
+    const canvas = measureAndApplySelectWidth._canvas || (measureAndApplySelectWidth._canvas = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    ctx.font = font;
+
+    let maxTextWidth = 0;
+    const opts = Array.from(sel.options || []);
+    opts.forEach(o => {
+      const text = String(o.textContent || '');
+      const w = ctx.measureText(text).width || 0;
+      if (w > maxTextWidth) maxTextWidth = w;
+    });
+
+    // compute paddings and arrow area
+    const padLeft = parseFloat(comp.paddingLeft) || 0;
+    const padRight = parseFloat(comp.paddingRight) || 0;
+    const arrowEl = trigger.querySelector('.custom-select-arrow');
+    const arrowW = arrowEl ? Math.ceil(arrowEl.getBoundingClientRect().width) : 16;
+    const buffer = 12; // breathing room
+
+    const final = Math.ceil(maxTextWidth + padLeft + padRight + arrowW + buffer);
+    const maxAllowed = Math.max(80, document.documentElement.clientWidth - 32);
+    const width = Math.min(final || 0, maxAllowed);
+    if (width > 0) {
+      wrapper.style.width = `${width}px`;
+      if (menu) menu.style.minWidth = `${width}px`;
+    }
+  } catch (e) { /* ignore measurement errors */ }
+}
+
+function syncAdminCustomSelect(selectId) {
+  try {
+    adminCustomSelectControllers.get(selectId)?.syncFromNative();
+  } catch (e) {}
+  // Re-measure width in case option set changed after initial render.
+  try { measureAndApplySelectWidth(selectId); } catch (e) {}
+}
+
+function initAdminCustomSelects() {
+  ['analytics-timespan-select', 'analytics-user-select', 'analytics-user-timespan-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) enhanceAdminSelect(sel);
+  });
+  document.addEventListener('click', e => {
+    const target = e.target;
+    if (!(target instanceof Element)) { closeAllAdminCustomSelects(); return; }
+    const insideCustomSelect = target.closest('.custom-select');
+    if (!insideCustomSelect) closeAllAdminCustomSelects();
+  });
+}
+
+// initialize admin custom selects immediately (admin.html places script at end of body)
+try { initAdminCustomSelects(); } catch (e) {}
 
 // Observe size changes on the panels grid and rerun layout when it changes.
 try {

@@ -1,5 +1,64 @@
 const DEFAULT_SERVER = 'http://localhost:3000';
+const DEFAULT_POPUP_THEME = 'dark';
+const POPUP_THEME_VALUES = new Set(['dark', 'light', 'oled']);
 let knownTags = [];
+let availableProfiles = [];
+const popupTagsInput = document.getElementById('tags');
+const tagsDropdownToggle = document.getElementById('tags-dropdown-toggle');
+const tagsDropdown = document.getElementById('tags-dropdown');
+const popupProfileInput = document.getElementById('pocket-user');
+const profileDropdownToggle = document.getElementById('profile-dropdown-toggle');
+const profileDropdown = document.getElementById('profile-dropdown');
+let tagSuggestionController = null;
+let profileSuggestionController = null;
+let knownTagsLoaded = false;
+let profilesLoaded = false;
+let knownTagsLoadPromise = null;
+let profilesLoadPromise = null;
+
+function normalizePopupTheme(rawValue) {
+  const value = String(rawValue || '').trim().toLowerCase();
+  return POPUP_THEME_VALUES.has(value) ? value : DEFAULT_POPUP_THEME;
+}
+
+function applyPopupTheme(rawValue) {
+  const theme = normalizePopupTheme(rawValue);
+  document.body?.setAttribute('data-theme', theme);
+  const themeSelect = document.getElementById('theme-mode');
+  if (themeSelect && themeSelect.value !== theme) {
+    themeSelect.value = theme;
+  }
+  return theme;
+}
+
+async function getPopupTheme() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['popupTheme'], result => {
+      resolve(normalizePopupTheme(result.popupTheme));
+    });
+  });
+}
+
+function normalizePocketUser(rawValue) {
+  const input = String(rawValue || '').trim();
+  if (!input) return 'default';
+  const safe = input.replace(/[^a-zA-Z0-9._-]/g, '');
+  return safe.slice(0, 64) || 'default';
+}
+
+function normalizeUsername(rawValue) {
+  const input = String(rawValue || '').trim().toLowerCase();
+  const safe = input.replace(/[^a-zA-Z0-9._-]/g, '');
+  return safe.slice(0, 64);
+}
+
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function parseTagList(rawValue) {
   return String(rawValue || '')
@@ -26,54 +85,215 @@ function splitTagInput(rawValue) {
   };
 }
 
-function updateTagSuggestionsForInput(inputEl) {
-  const suggestionList = document.getElementById('tag-suggestions-list');
-  if (!inputEl || !suggestionList) return;
+function createSuggestionController({ inputEl, toggleEl, dropdownEl, getOptions, emptyMessage }) {
+  if (!inputEl || !toggleEl || !dropdownEl) return null;
 
-  const { selected, current } = splitTagInput(inputEl.value);
+  const controller = {
+    options: [],
+    activeIndex: -1,
+    isOpen() {
+      return dropdownEl.classList.contains('open');
+    },
+    refresh() {
+      controller.options = getOptions();
+      if (controller.activeIndex >= controller.options.length) {
+        controller.activeIndex = controller.options.length - 1;
+      }
+
+      if (!controller.options.length) {
+        dropdownEl.innerHTML = `<div class="suggestion-empty">${emptyMessage}</div>`;
+        return;
+      }
+
+      dropdownEl.innerHTML = controller.options
+        .map((option, index) => `
+          <button
+            type="button"
+            class="suggestion-option${index === controller.activeIndex ? ' active' : ''}"
+            data-value="${escHtml(option.value)}"
+          >${escHtml(option.label)}</button>
+        `)
+        .join('');
+    },
+    open() {
+      closeAllSuggestionDropdowns(inputEl.id);
+      controller.refresh();
+      dropdownEl.classList.add('open');
+      inputEl.setAttribute('aria-expanded', 'true');
+      toggleEl.setAttribute('aria-expanded', 'true');
+      toggleEl.classList.add('open');
+    },
+    close() {
+      dropdownEl.classList.remove('open');
+      inputEl.setAttribute('aria-expanded', 'false');
+      toggleEl.setAttribute('aria-expanded', 'false');
+      toggleEl.classList.remove('open');
+      controller.activeIndex = -1;
+    },
+  };
+
+  inputEl.addEventListener('focus', () => controller.open());
+  inputEl.addEventListener('click', () => controller.open());
+  inputEl.addEventListener('input', () => {
+    controller.activeIndex = -1;
+    controller.open();
+  });
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!controller.isOpen()) controller.open();
+      if (!controller.options.length) return;
+
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      controller.activeIndex = (controller.activeIndex + delta + controller.options.length) % controller.options.length;
+      controller.refresh();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      controller.close();
+      return;
+    }
+
+    if (e.key !== 'Enter') return;
+    if (!controller.isOpen() || controller.activeIndex < 0 || !controller.options[controller.activeIndex]) return;
+
+    e.preventDefault();
+    inputEl.value = controller.options[controller.activeIndex].value;
+    controller.close();
+  });
+
+  toggleEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+  });
+
+  toggleEl.addEventListener('click', () => {
+    if (controller.isOpen()) {
+      controller.close();
+      return;
+    }
+    controller.open();
+    inputEl.focus();
+  });
+
+  dropdownEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+  });
+
+  dropdownEl.addEventListener('click', e => {
+    const option = e.target.closest('.suggestion-option');
+    if (!option) return;
+
+    inputEl.value = option.dataset.value || '';
+    controller.close();
+    inputEl.focus();
+  });
+
+  return controller;
+}
+
+function closeAllSuggestionDropdowns(exceptInputId = '') {
+  [tagSuggestionController, profileSuggestionController].forEach(controller => {
+    if (!controller) return;
+    if (exceptInputId && controller.inputId === exceptInputId) return;
+    controller.close();
+  });
+}
+
+function getTagSuggestionOptions() {
+  if (!popupTagsInput) return [];
+
+  const { selected, current } = splitTagInput(popupTagsInput.value);
   const selectedLower = new Set(selected.map(tag => tag.toLowerCase()));
   const needle = current.toLowerCase();
   const prefix = selected.length ? `${selected.join(', ')}, ` : '';
 
-  const candidates = knownTags.filter(tag => {
+  return knownTags.filter(tag => {
     if (selectedLower.has(tag.toLowerCase())) return false;
     if (!needle) return true;
     return tag.toLowerCase().includes(needle);
-  });
+  }).map(tag => ({
+    label: tag,
+    value: prefix + tag,
+  }));
+}
 
-  suggestionList.innerHTML = '';
-  candidates.forEach(tag => {
-    const option = document.createElement('option');
-    option.value = prefix + tag;
-    suggestionList.appendChild(option);
+function getProfileSuggestionOptions() {
+  if (!popupProfileInput) return [];
+  const needle = String(popupProfileInput.value || '').trim().toLowerCase();
+
+  return availableProfiles
+    .filter(profile => !needle || profile.toLowerCase().includes(needle))
+    .map(profile => ({ label: profile, value: profile }));
+}
+
+function ensureTagSuggestionController() {
+  if (tagSuggestionController) return tagSuggestionController;
+  tagSuggestionController = createSuggestionController({
+    inputEl: popupTagsInput,
+    toggleEl: tagsDropdownToggle,
+    dropdownEl: tagsDropdown,
+    getOptions: getTagSuggestionOptions,
+    emptyMessage: 'No tags found',
   });
+  if (tagSuggestionController) tagSuggestionController.inputId = popupTagsInput.id;
+  return tagSuggestionController;
+}
+
+function ensureProfileSuggestionController() {
+  if (profileSuggestionController) return profileSuggestionController;
+  profileSuggestionController = createSuggestionController({
+    inputEl: popupProfileInput,
+    toggleEl: profileDropdownToggle,
+    dropdownEl: profileDropdown,
+    getOptions: getProfileSuggestionOptions,
+    emptyMessage: 'No profiles found',
+  });
+  if (profileSuggestionController) profileSuggestionController.inputId = popupProfileInput.id;
+  return profileSuggestionController;
+}
+
+function updateTagSuggestionsForInput(inputEl) {
+  if (!inputEl || inputEl !== popupTagsInput) return;
+  ensureTagSuggestionController()?.refresh();
 }
 
 function wireTagSuggestions(inputEl) {
-  if (!inputEl) return;
-
-  inputEl.addEventListener('focus', () => {
-    updateTagSuggestionsForInput(inputEl);
-    try { inputEl.showPicker?.(); } catch {}
-  });
-
-  inputEl.addEventListener('click', () => {
-    updateTagSuggestionsForInput(inputEl);
-    try { inputEl.showPicker?.(); } catch {}
-  });
-
-  inputEl.addEventListener('input', () => {
-    updateTagSuggestionsForInput(inputEl);
-  });
-
-  inputEl.addEventListener('change', () => {
-    updateTagSuggestionsForInput(inputEl);
-  });
+  if (!inputEl || inputEl !== popupTagsInput) return;
+  ensureTagSuggestionController();
 }
 
-async function loadKnownTags(serverUrl) {
+function wireProfileSuggestions(inputEl) {
+  if (!inputEl || inputEl !== popupProfileInput) return;
+  ensureProfileSuggestionController();
+}
+
+function invalidateSuggestionCaches({ clearTags = false, clearProfiles = false } = {}) {
+  if (clearTags) {
+    knownTags = [];
+    ensureTagSuggestionController()?.refresh();
+  }
+  if (clearProfiles) {
+    availableProfiles = [];
+    ensureProfileSuggestionController()?.refresh();
+  }
+
+  knownTagsLoaded = false;
+  profilesLoaded = false;
+  knownTagsLoadPromise = null;
+  profilesLoadPromise = null;
+}
+
+async function loadKnownTags(serverUrl, pocketUser, authToken = '') {
   try {
-    const resp = await fetch(`${serverUrl}/api/tags`);
+    const headers = {
+      'X-Pocket-Profile': pocketUser,
+    };
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+    const resp = await fetch(`${serverUrl}/api/tags`, { headers });
     if (!resp.ok) throw new Error('Failed to load tags');
     const tags = await resp.json();
     if (!Array.isArray(tags)) throw new Error('Invalid tags payload');
@@ -82,6 +302,7 @@ async function loadKnownTags(serverUrl) {
       .map(tag => String(tag || '').trim())
       .filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
+    ensureTagSuggestionController()?.refresh();
   } catch {
     // Keep suggestions optional; popup save flow should work even if tag lookup fails.
   }
@@ -98,14 +319,197 @@ function mergeKnownTagsFromInput(rawTagValue) {
   });
 
   knownTags = Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
+  ensureTagSuggestionController()?.refresh();
+}
+
+function renderProfileControls(currentProfile) {
+  if (!popupProfileInput) return;
+
+  const normalizedCurrent = normalizePocketUser(currentProfile || 'default');
+  popupProfileInput.value = normalizedCurrent;
+  ensureProfileSuggestionController()?.refresh();
+}
+
+document.addEventListener('click', e => {
+  const target = e.target;
+  if (!(target instanceof Element)) {
+    closeAllSuggestionDropdowns();
+    return;
+  }
+
+  const withinSuggestionUi = [
+    popupTagsInput,
+    tagsDropdownToggle,
+    tagsDropdown,
+    popupProfileInput,
+    profileDropdownToggle,
+    profileDropdown,
+  ].some(node => node && node.contains(target));
+
+  if (!withinSuggestionUi) {
+    closeAllSuggestionDropdowns();
+  }
+});
+
+async function loadAvailableProfiles(serverUrl, pocketUser, authToken = '') {
+  if (!authToken) {
+    availableProfiles = [];
+    renderProfileControls(pocketUser);
+    return;
+  }
+
+  try {
+    const headers = {
+      Authorization: `Bearer ${authToken}`,
+      'X-Pocket-Profile': pocketUser,
+    };
+    const resp = await fetch(`${serverUrl}/api/profiles`, { headers });
+    if (!resp.ok) throw new Error('Failed to load profiles');
+    const profiles = await resp.json();
+    if (!Array.isArray(profiles)) throw new Error('Invalid profiles payload');
+
+    availableProfiles = [...new Set(profiles
+      .map(profile => normalizePocketUser(profile))
+      .filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    availableProfiles = [];
+  }
+
+  renderProfileControls(pocketUser);
+}
+
+async function ensureKnownTagsLoaded({ force = false } = {}) {
+  if (knownTagsLoaded && !force) return;
+  if (knownTagsLoadPromise && !force) return knownTagsLoadPromise;
+
+  knownTagsLoadPromise = (async () => {
+    const [serverUrl, pocketUser, { authToken }] = await Promise.all([
+      getServerUrl(),
+      getPocketUser(),
+      getAuthState(),
+    ]);
+    await loadKnownTags(serverUrl, pocketUser, authToken);
+    knownTagsLoaded = true;
+    updateTagSuggestionsForInput(popupTagsInput);
+  })().finally(() => {
+    knownTagsLoadPromise = null;
+  });
+
+  return knownTagsLoadPromise;
+}
+
+async function ensureAvailableProfilesLoaded({ force = false } = {}) {
+  if (profilesLoaded && !force) return;
+  if (profilesLoadPromise && !force) return profilesLoadPromise;
+
+  profilesLoadPromise = (async () => {
+    const [serverUrl, pocketUser, { authToken }] = await Promise.all([
+      getServerUrl(),
+      getPocketUser(),
+      getAuthState(),
+    ]);
+    await loadAvailableProfiles(serverUrl, pocketUser, authToken);
+    profilesLoaded = true;
+  })().finally(() => {
+    profilesLoadPromise = null;
+  });
+
+  return profilesLoadPromise;
+}
+
+function wireLazySuggestionLoads() {
+  popupTagsInput?.addEventListener('focus', () => {
+    ensureKnownTagsLoaded();
+  });
+  popupTagsInput?.addEventListener('click', () => {
+    ensureKnownTagsLoaded();
+  });
+  tagsDropdownToggle?.addEventListener('click', () => {
+    ensureKnownTagsLoaded();
+  });
+
+  popupProfileInput?.addEventListener('focus', () => {
+    ensureAvailableProfilesLoaded();
+  });
+  popupProfileInput?.addEventListener('click', () => {
+    ensureAvailableProfilesLoaded();
+  });
+  profileDropdownToggle?.addEventListener('click', () => {
+    ensureAvailableProfilesLoaded();
+  });
 }
 
 async function getServerUrl() {
   return new Promise(resolve => {
     chrome.storage.local.get(['serverUrl'], result => {
-      resolve(result.serverUrl || DEFAULT_SERVER);
+      resolve((result.serverUrl || DEFAULT_SERVER).trim().replace(/\/$/, ''));
     });
   });
+}
+
+async function getPocketUser() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['pocketUser'], result => {
+      resolve(normalizePocketUser(result.pocketUser || 'default'));
+    });
+  });
+}
+
+async function getAuthState() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['authToken', 'authUsername'], result => {
+      resolve({
+        authToken: String(result.authToken || '').trim(),
+        authUsername: normalizeUsername(result.authUsername || ''),
+      });
+    });
+  });
+}
+
+async function buildApiHeaders(options = {}) {
+  const includeJson = options.includeJson !== false;
+  const pocketUser = await getPocketUser();
+  const { authToken } = await getAuthState();
+
+  const headers = {
+    'X-Pocket-Profile': pocketUser,
+  };
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
+  if (includeJson) headers['Content-Type'] = 'application/json';
+  return headers;
+}
+
+function updateAuthInfo(text) {
+  const info = document.getElementById('auth-info');
+  if (info) info.textContent = text || '';
+}
+
+function setAuthUiState(authState) {
+  const saveUi = document.getElementById('save-ui');
+  const authOnlyPanel = document.getElementById('auth-only-panel');
+  const settingsToggle = document.getElementById('settings-toggle');
+  const settingsPanel = document.getElementById('settings-panel');
+  const logoutPanel = document.getElementById('auth-logout-panel');
+  const hasToken = Boolean(authState?.authToken);
+
+  if (saveUi) saveUi.style.display = hasToken ? 'block' : 'none';
+  if (authOnlyPanel) authOnlyPanel.style.display = hasToken ? 'none' : 'block';
+  if (settingsToggle) settingsToggle.style.display = hasToken ? 'inline-block' : 'none';
+  if (!hasToken && settingsPanel) settingsPanel.classList.remove('open');
+  if (logoutPanel) logoutPanel.style.display = hasToken ? 'block' : 'none';
+
+  updateAuthInfo(hasToken ? `Signed in as ${authState.authUsername || 'user'}` : '');
+}
+
+function promptForLogin(statusMessage = '✗ Please sign in first') {
+  const status = document.getElementById('status');
+  const usernameInput = document.getElementById('auth-username');
+  if (status) status.textContent = statusMessage;
+  if (usernameInput) usernameInput.focus();
 }
 
 async function getCurrentTab() {
@@ -311,6 +715,7 @@ async function getBrowserName() {
   if (/Firefox/i.test(brands) || /Firefox\//.test(ua)) return 'Firefox';
   if (/Chrome/i.test(brands) || /Chrome\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Chromium\//.test(ua)) return 'Safari';
+
   return 'Browser';
 }
 
@@ -323,10 +728,15 @@ async function getDeviceLabel(via) {
 // ── Init popup ───────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const popupTheme = await getPopupTheme();
+  applyPopupTheme(popupTheme);
+
   const tab = await getCurrentTab().catch(() => null);
   const titleInput = document.getElementById('title');
   const tagsInput = document.getElementById('tags');
   wireTagSuggestions(tagsInput);
+  wireProfileSuggestions(document.getElementById('pocket-user'));
+  wireLazySuggestionLoads();
 
   titleInput.placeholder = tab?.title || tab?.url || 'Title';
 
@@ -347,8 +757,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Load server URL into settings
   const serverUrl = await getServerUrl();
+  const pocketUser = await getPocketUser();
+  const { authToken, authUsername } = await getAuthState();
   document.getElementById('server-url').value = serverUrl;
-  await loadKnownTags(serverUrl);
+  document.getElementById('auth-username').value = authUsername;
+  renderProfileControls(pocketUser);
+  applyPopupTheme(popupTheme);
+  setAuthUiState({ authToken, authUsername });
   updateTagSuggestionsForInput(tagsInput);
 });
 
@@ -384,10 +799,11 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   try {
     const resp = await fetch(`${serverUrl}/api/pages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await buildApiHeaders(),
       body: JSON.stringify({
         url: urlToSave,
         title: customTitle || tab.title || '',
+        title_is_manual: Boolean(customTitle),
         tags,
         notes,
         is_recipe: isRecipe,
@@ -397,7 +813,17 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       }),
     });
 
-    if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+    if (!resp.ok) {
+      if (resp.status === 401) {
+        await new Promise(resolve => {
+          chrome.storage.local.remove(['authToken', 'authUsername'], resolve);
+        });
+        setAuthUiState({ authToken: '', authUsername: '' });
+        promptForLogin();
+        return;
+      }
+      throw new Error(`Server error ${resp.status}`);
+    }
 
     status.textContent = '✓ Saved!';
     mergeKnownTagsFromInput(tags);
@@ -420,9 +846,85 @@ document.getElementById('settings-toggle').addEventListener('click', () => {
 
 document.getElementById('save-settings').addEventListener('click', () => {
   const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
-  chrome.storage.local.set({ serverUrl: url }, () => {
+  const pocketUser = normalizePocketUser(document.getElementById('pocket-user').value);
+  const popupTheme = applyPopupTheme(document.getElementById('theme-mode')?.value || DEFAULT_POPUP_THEME);
+  document.getElementById('pocket-user').value = pocketUser;
+
+  chrome.storage.local.set({ serverUrl: url, pocketUser, popupTheme }, async () => {
+    invalidateSuggestionCaches({ clearTags: true, clearProfiles: true });
     document.getElementById('status').textContent = '✓ Settings saved';
   });
+});
+
+document.getElementById('theme-mode')?.addEventListener('change', e => {
+  applyPopupTheme(e.target?.value || DEFAULT_POPUP_THEME);
+});
+
+document.getElementById('auth-login-btn').addEventListener('click', async () => {
+  const status = document.getElementById('status');
+  const serverUrl = await getServerUrl();
+  const pocketUser = await getPocketUser();
+  const usernameInput = document.getElementById('auth-username');
+  const passwordInput = document.getElementById('auth-password');
+
+  const username = normalizeUsername(usernameInput.value);
+  const password = String(passwordInput.value || '');
+  if (username.length < 3) {
+    status.textContent = '✗ Username too short';
+    return;
+  }
+  if (password.length < 8) {
+    status.textContent = '✗ Password too short';
+    return;
+  }
+
+  status.textContent = 'Signing in...';
+  try {
+    const resp = await fetch(`${serverUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+
+    const data = await resp.json();
+    await new Promise(resolve => {
+      chrome.storage.local.set({ authToken: data.token, authUsername: data.username }, resolve);
+    });
+
+    passwordInput.value = '';
+    setAuthUiState({ authToken: data.token, authUsername: data.username });
+    invalidateSuggestionCaches({ clearTags: true, clearProfiles: true });
+    status.textContent = '✓ Signed in';
+  } catch (err) {
+    status.textContent = `✗ ${err.message}`;
+  }
+});
+
+document.getElementById('auth-logout-btn').addEventListener('click', async () => {
+  const status = document.getElementById('status');
+  const serverUrl = await getServerUrl();
+  const pocketUser = await getPocketUser();
+  const { authToken } = await getAuthState();
+
+  try {
+    if (authToken) {
+      await fetch(`${serverUrl}/api/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+    }
+  } catch {
+    // Ignore logout errors and still clear local token.
+  }
+
+  await new Promise(resolve => {
+    chrome.storage.local.remove(['authToken', 'authUsername'], resolve);
+  });
+
+  setAuthUiState({ authToken: '', authUsername: '' });
+  invalidateSuggestionCaches({ clearTags: true, clearProfiles: true });
+  promptForLogin('✓ Signed out');
 });
 
 document.getElementById('open-pocket-btn').addEventListener('click', async () => {

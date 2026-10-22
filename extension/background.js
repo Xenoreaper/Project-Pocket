@@ -2,10 +2,33 @@ const DEFAULT_SERVER = 'http://localhost:3000';
 const SAVE_MENU_ID = 'project-pocket-save-page';
 const actionApi = chrome.action || chrome.browserAction;
 
+function normalizePocketUser(rawValue) {
+  const input = String(rawValue || '').trim();
+  if (!input) return 'default';
+  const safe = input.replace(/[^a-zA-Z0-9._-]/g, '');
+  return safe.slice(0, 64) || 'default';
+}
+
 function getServerUrl() {
   return new Promise(resolve => {
     chrome.storage.local.get(['serverUrl'], result => {
       resolve((result.serverUrl || DEFAULT_SERVER).trim().replace(/\/$/, ''));
+    });
+  });
+}
+
+function getPocketUser() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['pocketUser'], result => {
+      resolve(normalizePocketUser(result.pocketUser || 'default'));
+    });
+  });
+}
+
+function getAuthState() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['authToken'], result => {
+      resolve(String(result.authToken || '').trim());
     });
   });
 }
@@ -27,6 +50,7 @@ function getBrowserName() {
   if (/Firefox\//.test(ua)) return 'Firefox';
   if (/Chrome\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return 'Safari';
+
   return 'Browser';
 }
 
@@ -83,12 +107,24 @@ function clearBadgeAfter(ms) {
 
 async function savePageToPocket(url, title = '') {
   const serverUrl = await getServerUrl();
+  const pocketUser = await getPocketUser();
+  const authToken = await getAuthState();
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Pocket-Profile': pocketUser,
+  };
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
   const response = await fetch(`${serverUrl}/api/pages`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       url,
       title: title || '',
+      title_is_manual: false,
       is_music: isMusicUrl(url),
       device: getDeviceLabel(),
       saved_via: 'extension',
@@ -96,7 +132,9 @@ async function savePageToPocket(url, title = '') {
   });
 
   if (!response.ok) {
-    throw new Error(`Server error ${response.status}`);
+    const error = new Error(`Server error ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 }
 
@@ -128,8 +166,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await savePageToPocket(url, title);
     setBadge('✓', '#2f8f5b');
     clearBadgeAfter(1800);
-  } catch {
-    setBadge('!', '#c53d4f');
+  } catch (err) {
+    if (err && err.status === 401) {
+      setBadge('🔒', '#c53d4f');
+    } else {
+      setBadge('!', '#c53d4f');
+    }
     clearBadgeAfter(2200);
   }
 });
