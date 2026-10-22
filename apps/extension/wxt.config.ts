@@ -17,10 +17,12 @@ export default defineConfig({
     name: "Project Pocket",
     description: "Everything important from any page, in one pocket.",
     version: "0.1.0",
-    // No permissions yet: the scaffold popup only displays text. Permissions
-    // (storage, contextMenus, host access) are added together with the save
-    // feature so we never request more access than we use.
-    permissions: [],
+    // M1 permissions, deliberately minimal:
+    // - storage: keep the pocket in browser.storage.local
+    // - contextMenus: build "Save to Pocket ▸ category"
+    // - activeTab + scripting: inject the capture function only after the
+    //   user clicks our menu item. We do NOT request <all_urls> or "tabs".
+    permissions: ["storage", "contextMenus", "activeTab", "scripting"],
 
     // Firefox-specific metadata. WXT injects this key only into the Firefox
     // manifest; Chrome would otherwise warn about an unknown key.

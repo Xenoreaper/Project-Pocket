@@ -1,5 +1,6 @@
-/* Popup styles. The popup is a small fixed-size surface, so we only need a
-   compact dark theme. Colors are intentionally simple in the scaffold. */
+/* Popup styles.
+   The popup is a small fixed-size surface, so a compact dark theme is enough.
+   Everything is plain CSS: no UI framework is needed for this milestone. */
 :root {
   color-scheme: dark;
   font-family:
@@ -9,62 +10,362 @@
     sans-serif;
   --bg: #0f0f13;
   --surface: #1a1a24;
-  --accent: #7c6af7;
+  --surface-raised: #222230;
+  --border: #333344;
+  --accent: #8b7bff;
+  --accent-soft: #2d2850;
   --text: #e8e8f0;
   --muted: #9a9aae;
+  --danger: #ff7a7a;
+  --success: #7bd88f;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  min-width: 280px;
   background: var(--bg);
   color: var(--text);
 }
 
 .popup {
+  width: 380px;
+  max-height: 580px;
+  overflow-y: auto;
   padding: 16px;
 }
 
-h1 {
-  margin: 0 0 4px;
+h1,
+h2 {
+  margin: 0;
   font-size: 18px;
   line-height: 1.25;
 }
 
+h2 {
+  font-size: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .subtitle {
-  margin: 0 0 16px;
+  margin: 4px 0 0;
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search {
+  margin-top: 16px;
+}
+
+.field-label,
+.details-form label {
+  display: block;
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 10px;
   font-size: 13px;
 }
 
-.label {
-  margin: 0 0 6px;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-.categories {
+textarea {
+  resize: vertical;
+  min-height: 68px;
+}
+
+.filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 0 16px;
+  margin-top: 10px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.chip-count {
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.page-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.page-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.page-card-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.favicon {
+  flex: 0 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.favicon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.page-card-heading {
+  min-width: 0;
+}
+
+.page-card-heading h2 {
+  overflow-wrap: anywhere;
+}
+
+.page-card-heading a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.page-card-heading a:hover {
+  color: var(--accent);
+}
+
+.page-card-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.page-card-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.page-card-controls select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.page-card-controls button:last-child:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.categories li {
-  padding: 4px 10px;
-  border: 1px solid var(--accent);
+.tags li {
   border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.page-card-note {
+  margin: 10px 0 0;
+  padding-left: 9px;
+  border-left: 2px solid var(--accent);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.details-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.details-form label {
+  margin-top: 2px;
+}
+
+.form-hint {
+  margin: 2px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.form-actions button:first-child {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.empty {
+  padding: 18px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.error {
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
   font-size: 12px;
 }
 
-.status {
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--surface);
+.new-category {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.new-category h2 {
+  margin-bottom: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.new-category-form {
+  display: flex;
+  gap: 6px;
+}
+
+.new-category-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Visually hidden but still read by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

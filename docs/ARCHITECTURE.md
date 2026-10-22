@@ -1,7 +1,8 @@
 # Architecture
 
-> Status: **M0 scaffold**. Solid boxes exist and run; dashed boxes are planned. This document is
-> updated whenever components or data flows change.
+> Status: **M1 local-first saving is implemented** in the extension. Sync, backend authentication,
+> extraction and export are still planned. Solid boxes in the diagrams exist and run; dashed boxes
+> are planned. This document is updated whenever components or data flows change.
 
 Project Pocket has four cooperating parts:
 
@@ -16,8 +17,9 @@ Project Pocket has four cooperating parts:
 ```mermaid
 flowchart LR
     subgraph Browser["Browser"]
-        Ext["Browser extension<br/>WXT + React<br/>(built: popup shell)"]
-        Store[("browser.storage.local<br/>JSON pocket<br/>(planned)")]
+        Ext["Browser extension<br/>WXT + React<br/>(built: M1 save + popup)"]
+        Capture["Capture function<br/>scripting.executeScript<br/>(built: M1)"]
+        Store[("browser.storage.local<br/>versioned JSON pocket<br/>(built: M1)")]
     end
 
     Web["Web app<br/>React + Vite PWA<br/>(built: health page)"]
@@ -32,7 +34,9 @@ flowchart LR
 
     Mealie["Mealie instance<br/>(planned)"]
 
-    Ext -->|"save locally"| Store
+    Ext -->|"right-click save"| Capture
+    Capture -->|"metadata + bounded snapshot"| Ext
+    Ext -->|"upsert by normalised URL"| Store
     Ext -.->|"sync (planned)"| API
     Web -->|"GET /api/health (built)"| API
     Web -.->|"browse / export (planned)"| API
@@ -44,18 +48,106 @@ flowchart LR
 
     classDef built fill:#1f3d2b,stroke:#58d68d,color:#e8e8f0;
     classDef planned fill:#2a2a36,stroke:#9a9aae,stroke-dasharray:5 5,color:#e8e8f0;
-    class Ext,Web,API,DB,LLM built;
-    class Store,Extract,Export,Mealie planned;
+    class Ext,Capture,Store,Web,API,DB,LLM built;
+    class Extract,Export,Mealie planned;
 ```
 
 Reading the diagram: the extension is useful without the server (local-first). Sync is an explicit
 action. The backend never scrapes on behalf of the extension without being asked; extraction happens
 when the user syncs or explicitly requests it.
 
-## Planned main flow
+## Extension M1 flow (built)
 
-This is the flow we build towards; nothing below except saving the backend URL/health check exists
-yet.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant BG as Background worker
+    participant Menu as contextMenus
+    participant Page as Active tab
+    participant Local as storage.local
+    participant Popup as Popup
+
+    User->>BG: Right-click page → Save to Pocket ▸ Recipes
+    Menu-->>BG: onClicked(menuItemId, tab)
+    BG->>BG: Parse category from menu ID
+    BG->>Page: scripting.executeScript(collectPageData)
+    Note over Page: activeTab grants temporary access<br/>after the user's click
+    Page-->>BG: title, metadata, JSON-LD, cleaned text, caps
+    BG->>Local: Upsert pocket:v1:page:<uuid>
+    BG-->>User: Toolbar badge ✓ / ↻ / !
+    User->>Popup: Open toolbar popup
+    Popup->>Local: Read pages + custom categories
+    Local-->>Popup: SavedPage[]
+    User->>Popup: Search / filter / edit / delete
+    Popup->>Local: updatePage / deletePage
+```
+
+The capture function is injected on demand. There is no persistent content script: the extension
+does not read pages until the user asks it to save one.
+
+### Extension modules
+
+| File                             | Responsibility                                                              |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `entrypoints/background.ts`      | Register menu/storage listeners, rebuild menu, dispatch menu clicks         |
+| `lib/context-menu.ts`            | Menu IDs, category parsing, parent/child menu construction                  |
+| `lib/capture.ts`                 | Self-contained page collector, metadata/JSON-LD/text extraction, limits     |
+| `lib/storage.ts`                 | Versioned CRUD, URL normalisation, duplicate upsert, categories, validation |
+| `lib/save-flow.ts`               | Capture → save → badge workflow, testable through dependency injection      |
+| `entrypoints/popup/App.tsx`      | Load pages, search/filter, mutations, custom category form                  |
+| `entrypoints/popup/PageCard.tsx` | One page card: open, recategorise, edit tags/note, delete                   |
+
+### Permissions
+
+| Permission     | Why                                                      |
+| -------------- | -------------------------------------------------------- |
+| `storage`      | save and read the local pocket                           |
+| `contextMenus` | build "Save to Pocket ▸ category"                        |
+| `activeTab`    | temporary access to the page the user chose to save      |
+| `scripting`    | inject the capture function after the context-menu click |
+
+No host permissions, no `tabs`, no notifications. Firefox and Chrome both support these APIs. The
+extension never uses `chrome.*` directly; WXT exposes the cross-browser `browser.*` object.
+
+## Local storage format (M1)
+
+`browser.storage.local` holds one JSON record per key:
+
+```text
+pocket:v1:page:<uuid>       → SavedPage
+pocket:v1:category:<uuid>   → CategoryDefinition (custom categories only)
+```
+
+Built-in categories (`recipes`, `diy`, `lyrics`, `other`) are part of the shared code. Custom IDs use
+`custom:<uuid>`. The `v1` prefix allows a future migration without guessing which records are old.
+
+A `SavedPage` contains:
+
+| Field                                 | Meaning                                                           |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| `id`, `url`, `title`                  | Identity and basic page metadata; `url` has no fragment           |
+| `favicon`, `siteName`                 | Optional display metadata                                         |
+| `description`, `canonicalUrl`, `lang` | Optional capture metadata used by M3                              |
+| `category`                            | Built-in or `custom:<uuid>` ID                                    |
+| `tags[]`, `note`                      | User-owned data, preserved across repeated saves                  |
+| `savedAt`, `updatedAt`                | ISO-8601 UTC strings                                              |
+| `snapshot`                            | Parsed JSON-LD + cleaned text + `capturedAt` + `truncated`        |
+| `sync`                                | `local`, `pending`, `synced` or `error` (only `local` used in M1) |
+
+Snapshots are bounded instead of storing full HTML:
+
+- visible text: 40,000 characters;
+- JSON-LD: 80,000 characters total;
+- whole page record: 200,000 bytes.
+
+Repeated saves are an **upsert by normalised URL** (fragment removed, query kept). The page `id`,
+`savedAt`, tags and note stay; category, title, metadata and snapshot refresh; `updatedAt` changes.
+See [ADR 0002](decisions/0002-local-first-storage.md) for the reasoning and rejected alternatives.
+
+## Planned main flow (M2+)
+
+M1 covers the first two steps below. Sync, extraction, browsing and export are planned.
 
 ```mermaid
 sequenceDiagram
@@ -71,8 +163,7 @@ sequenceDiagram
     participant Mealie as Mealie
 
     User->>Ext: Right-click page → choose category (e.g. Recipes)
-    Ext->>Local: Store page (URL, title, category, timestamp)
-    Note over Ext,Local: Works offline, no account required (planned M1)
+    Ext->>Local: Upsert page + bounded snapshot (built M1)
 
     User->>Ext: Click "Sync"
     Ext->>API: POST /api/items (JSON)
@@ -97,19 +188,21 @@ sequenceDiagram
     Mealie-->>User: Recipe in Mealie
 ```
 
-## Data model (planned)
+## Data model
 
 The internal format stays JSON. Recipes follow [schema.org/Recipe] as closely as practical, so
-script-based extraction and later LLM output can be validated against one model. A first sketch
-(from the old prototype, to be formalised in M1/M3):
+script-based extraction and later LLM output can be validated against one model. M1 formalised the
+local `SavedPage` in `packages/shared`; the backend's synced model and structured recipe are still
+planned for M2/M3.
 
 | Field                               | Meaning                                                                |
 | ----------------------------------- | ---------------------------------------------------------------------- |
 | `id`, `url`, `title`, `description` | Identity and basic page metadata                                       |
-| `category`                          | `recipes`, `diy`, `lyrics` (see `packages/shared`)                     |
+| `category`                          | `recipes`, `diy`, `lyrics`, `other` or `custom:<uuid>`                 |
 | `tags[]`                            | Free-form labels, used for filtering                                   |
-| `notes`                             | User's own note                                                        |
-| `created_at`, `updated_at`          | Timestamps (UTC)                                                       |
+| `note`                              | User's own note                                                        |
+| `savedAt`, `updatedAt`              | Timestamps (UTC ISO strings)                                           |
+| `snapshot`                          | Bounded JSON-LD + cleaned text captured from the page                  |
 | `recipe`                            | Optional structured recipe (ingredients, instructions, servings, time) |
 
 CSV is an **export format only**, never the storage format.
@@ -131,6 +224,12 @@ The backend owns the contract. FastAPI generates OpenAPI docs automatically at `
 
 - **Local-first extension.** Saving a page must never depend on a server being reachable. Sync is
   separate and retryable.
+- **Versioned per-record local storage.** One key per page avoids rewriting the whole pocket and
+  makes corruption local to one record. Details in ADR 0002.
+- **Upsert by normalised URL.** Repeated saves update instead of creating silent duplicates while
+  preserving user tags/notes.
+- **Bounded snapshots.** Parsed JSON-LD + cleaned text gives M3 useful input without storing full
+  HTML or risking the storage quota.
 - **Script-based extraction before LLM.** Deterministic parsers are cheap, testable and private;
   the LLM is only a fallback behind a provider interface (`backend/app/llm/base.py`). Tests mock it,
   never call a real API.

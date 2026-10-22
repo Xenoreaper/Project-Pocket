@@ -6,22 +6,24 @@ Project Pocket is a self-hosted "save for later" app for web pages. A browser ex
 page into a local pocket, an optional sync sends it to your own server, and the backend extracts
 structured data (recipes first) so you can browse, filter and export it.
 
-This repository is currently an **M0 scaffold**: every part builds, runs and has tests, but the
-product features (saving, syncing, extracting, exporting) are not implemented yet. See
+**M1 (local-first saving) is implemented in the extension.** Right-click a page, choose
+_Save to Pocket ▸ category_, and the page is stored in the browser. The popup lists, searches,
+filters, opens, edits and deletes saved pages. Sync, extraction and export are still planned; see
 [`docs/PROGRESS.md`](docs/PROGRESS.md) for the roadmap.
 
 ## What is in the box
 
 | Part                                 | Path                 | Status                                                                                 |
 | ------------------------------------ | -------------------- | -------------------------------------------------------------------------------------- |
-| Browser extension (Chrome + Firefox) | `apps/extension`     | WXT + React popup, empty background script                                             |
+| Browser extension (Chrome + Firefox) | `apps/extension`     | M1: context-menu saving, local pocket, popup with search/filter/edit/delete            |
 | Web app (PWA)                        | `apps/web`           | React + Vite start page that calls the backend health endpoint                         |
-| Shared TypeScript types              | `packages/shared`    | `Category` type + guard, used by both frontends                                        |
+| Shared TypeScript types              | `packages/shared`    | `SavedPage`, categories, snapshots and runtime guards                                  |
 | Backend API                          | `backend`            | FastAPI health endpoint, SQLModel/Alembic wiring, empty extraction/LLM/export packages |
 | Local stack                          | `docker-compose.yml` | Backend + web app + optional tooling container                                         |
 
-More background: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
-[`docs/decisions/0001-tech-stack.md`](docs/decisions/0001-tech-stack.md).
+More background: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[ADR 0001 (tech stack)](docs/decisions/0001-tech-stack.md) and
+[ADR 0002 (local-first storage)](docs/decisions/0002-local-first-storage.md).
 
 ## Prerequisites
 
@@ -71,6 +73,7 @@ All commands are wrappers around the Docker tools image. Run `make help` for the
 | `make backend-test`                 | pytest                                                     |
 | `make build`                        | Extension (Chrome) + web app production build              |
 | `make build-firefox`                | Extension (Firefox) production build                       |
+| `make build-all`                    | Extension (Chrome + Firefox) + web app production build    |
 | `make verify`                       | The complete Definition of Done locally                    |
 | `make up` / `make down`             | Start / stop backend + web app                             |
 | `make backend-dev`                  | Backend with auto-reload on <http://localhost:8000>        |
@@ -85,32 +88,58 @@ docker compose run --rm -T tools sh -c "cd backend && uv run pytest"
 
 ## Load the extension
 
-Build it first (Chrome: `make build`, Firefox: `make build-firefox`).
+Build both browser targets first:
+
+```bash
+make build-all          # Chrome + Firefox extension, plus the web app
+```
+
+The outputs are `apps/extension/.output/chrome-mv3` and `apps/extension/.output/firefox-mv3`.
+Run `make build` for Chrome only or `make build-firefox` for Firefox only.
 
 ### Chrome / Chromium / Edge
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode** (top right).
 3. Click **Load unpacked** and select `apps/extension/.output/chrome-mv3`.
-4. Click the Project Pocket icon in the toolbar → the popup shows "Project Pocket — hello".
+4. Pin **Project Pocket** to the toolbar if it is hidden in the puzzle-piece menu.
+5. Open a normal website (for example a recipe page), right-click it and choose
+   **Save to Pocket ▸ Recipes**.
+6. The toolbar badge shows `✓` (new page) or `↻` (same URL updated). Click the extension icon to
+   see the page in the popup.
 
 ### Firefox
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on…**.
 3. Select `apps/extension/.output/firefox-mv3/manifest.json`.
-4. Open the extension popup from the toolbar.
+4. Open a normal website, right-click it and choose **Save to Pocket ▸ Recipes**.
+5. Open the extension popup from the toolbar. A temporary add-on disappears when Firefox closes;
+   that is normal for local development.
 
-A temporary Firefox add-on disappears when Firefox closes; that is normal for local development.
-`docker compose run --rm -T tools pnpm --filter extension zip` (or `zip:firefox`) will later
-produce store-ready archives.
+### Try the M1 features
+
+1. Save a page in **Recipes** and another in **DIY Projects**.
+2. Save the **same URL** again: the badge shows `↻` and the popup still has one card for that URL.
+3. In the popup, use the search box and the category chips.
+4. Click a card title to open the page in a new tab.
+5. Change the card's category with the dropdown; click **Edit** to add comma-separated tags and a
+   note; click **Delete** and confirm.
+6. Add a custom category at the bottom of the popup, then right-click a page: the new category is
+   already in the **Save to Pocket** submenu.
+
+Restricted pages (`chrome://…`, `about:…`, browser stores, some PDF viewers) cannot be injected.
+The badge shows `!` and the page is not saved. That is a browser security rule, not an extension bug.
+
+Store-ready archives can be produced later with
+`docker compose run --rm -T tools pnpm --filter extension zip` (or `zip:firefox`).
 
 ### Extension development
 
 WXT's `dev` mode wants to launch a browser, which is not possible from inside a container. The
 workflow in this Docker-only setup is: edit code → `make build` (or `make build-firefox`) → click
-**Reload** on the extension card in Chrome, or reload the temporary add-on in Firefox. The popup
-test runs without a browser (`make test`).
+**Reload** on the extension card in Chrome, or reload the temporary add-on in Firefox. Tests run
+without a browser (`make test`).
 
 ## Backend development
 
@@ -158,7 +187,7 @@ The backend loads settings via `pydantic-settings` with the `POCKET_` prefix
 (`backend/app/config.py`). `POCKET_DATABASE_URL` is set to an absolute path inside the container by
 `docker-compose.yml`; locally the default is `sqlite:///./data/pocket.db`.
 
-**Secrets:** this scaffold needs none. When an LLM API key is added, it must live only in `.env`
+**Secrets:** M1 needs none. When an LLM API key is added, it must live only in `.env`
 (git-ignored) and be documented as a placeholder in `.env.example` — never commit a real key.
 
 ## Docker
@@ -175,12 +204,12 @@ volume deletes all data: `docker compose down -v`.
 
 ## Tests
 
-| Layer           | Tool                     | Command                         |
-| --------------- | ------------------------ | ------------------------------- |
-| Shared package  | Vitest                   | `make test` (runs all TS tests) |
-| Extension popup | Vitest + Testing Library | `make test`                     |
-| Web start page  | Vitest + Testing Library | `make test`                     |
-| Backend         | pytest                   | `make backend-test`             |
+| Layer          | Tool                     | Command                         |
+| -------------- | ------------------------ | ------------------------------- |
+| Shared package | Vitest                   | `make test` (runs all TS tests) |
+| Extension      | Vitest + Testing Library | `make test`                     |
+| Web start page | Vitest + Testing Library | `make test`                     |
+| Backend        | pytest                   | `make backend-test`             |
 
 CI (`.github/workflows/ci.yml`) runs lint, format check, type check, tests and both extension
 builds plus the web build on every push/PR.
