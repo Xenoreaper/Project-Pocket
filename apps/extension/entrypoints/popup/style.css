@@ -1,0 +1,70 @@
+/* Popup styles. The popup is a small fixed-size surface, so we only need a
+   compact dark theme. Colors are intentionally simple in the scaffold. */
+:root {
+  color-scheme: dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  --bg: #0f0f13;
+  --surface: #1a1a24;
+  --accent: #7c6af7;
+  --text: #e8e8f0;
+  --muted: #9a9aae;
+}
+
+body {
+  margin: 0;
+  min-width: 280px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.popup {
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.categories li {
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.status {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}

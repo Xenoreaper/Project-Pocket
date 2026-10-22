@@ -1,18 +1,39 @@
-# Local environment files
+# ── Secrets & local configuration ────────────────────────────────────────────
+# .env holds local values (ports, later LLM keys). Only .env.example is shared.
 .env
 .env.*
 !.env.example
 
-# Python cache
+# ── JavaScript / TypeScript ──────────────────────────────────────────────────
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# WXT (extension build tool) output and generated types
+.output/
+.wxt/
+*.zip
+
+# Extension signing key (never commit; generated locally)
+extension.pem
+extension.crx
+
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
 
-# macOS
+# ── Databases / runtime data ─────────────────────────────────────────────────
+*.db
+*.db-journal
+backend/data/
+
+# ── Editors & operating systems ──────────────────────────────────────────────
 .DS_Store
-
-# Extension private key
-extension.pem
-
-# Extension build output
-extension.zip
-extension.crx
+.idea/
+.vscode/*
+!.vscode/extensions.json

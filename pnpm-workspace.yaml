@@ -1,0 +1,12 @@
+# pnpm workspace definition.
+# Every folder matched here is one workspace package. pnpm links local
+# packages (e.g. @project-pocket/shared) into each other automatically.
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10+ refuses to run install scripts of dependencies unless they are
+# explicitly allow-listed here (a supply-chain safety feature). esbuild is
+# needed by Vitest/Vite tooling to download its prebuilt binary.
+onlyBuiltDependencies:
+  - esbuild

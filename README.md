@@ -1,165 +1,199 @@
 # Project Pocket
 
-Project Pocket is a self-hosted "save for later" system with:
+> Everything important from any page, in one pocket.
 
-- a token-authenticated web app
-- a dedicated admin panel
-- a FastAPI backend (proxied through Nginx)
-- a browser extension (Manifest V3)
+Project Pocket is a self-hosted "save for later" app for web pages. A browser extension saves a
+page into a local pocket, an optional sync sends it to your own server, and the backend extracts
+structured data (recipes first) so you can browse, filter and export it.
 
-## Current Capabilities
+This repository is currently an **M0 scaffold**: every part builds, runs and has tests, but the
+product features (saving, syncing, extracting, exporting) are not implemented yet. See
+[`docs/PROGRESS.md`](docs/PROGRESS.md) for the roadmap.
 
-- User authentication with persistent bearer sessions
-- Role-based routing sends admins to `admin.html` and non-admin users to `index.html`
-- Forced password change flow lets admins reset/force passwords and blocks affected users until they set a new password
-- Saving supports tags, notes, recipe/music flags, and source metadata (`device`, `saved_via`)
-- New saves auto-extract metadata (title, description, favicon) and recipe instructions/ingredients when available
-- Re-saving the same URL increments `resave_count` and merges tags/notes instead of duplicating records
-- Multi-profile saves per authenticated user via `X-Pocket-Profile`
-- View and filtering tools include All Pages, Recipes, Music, and By Domain views
-- Server-side list API supports search, domain/tag filters, include/exclude tag filters, sort modes, `limit`, and `offset`
-- CSV workflows include native export/import and third-party Pocket CSV import
-- Auto-tag rules (domain/url/title/device matching, including wildcard variants)
-- Ingredient canonicalization endpoint for recipe matching support
-- Theme modes across UI: Light, Dark, OLED
+## What is in the box
 
-## Architecture
+| Part                                 | Path                 | Status                                                                                 |
+| ------------------------------------ | -------------------- | -------------------------------------------------------------------------------------- |
+| Browser extension (Chrome + Firefox) | `apps/extension`     | WXT + React popup, empty background script                                             |
+| Web app (PWA)                        | `apps/web`           | React + Vite start page that calls the backend health endpoint                         |
+| Shared TypeScript types              | `packages/shared`    | `Category` type + guard, used by both frontends                                        |
+| Backend API                          | `backend`            | FastAPI health endpoint, SQLModel/Alembic wiring, empty extraction/LLM/export packages |
+| Local stack                          | `docker-compose.yml` | Backend + web app + optional tooling container                                         |
 
-- `frontend` container serves static app and proxies `/api/*` to backend
-- `backend` container runs FastAPI + SQLAlchemy
-- SQLite data is persisted in Docker volume `pocket-db`
-- Lightweight DB migrations run automatically at backend startup
+More background: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+[`docs/decisions/0001-tech-stack.md`](docs/decisions/0001-tech-stack.md).
 
-## Stack
+## Prerequisites
 
-- Backend: Python 3.12, FastAPI, SQLAlchemy, SQLite
-- Frontend: Vanilla HTML/CSS/JS, Nginx
-- Extension: Manifest V3 (`chrome`, `edge`, Brave-compatible)
+- **Docker Desktop** (or Docker Engine + Compose v2) — the only required toolchain.
+- **Git** and **Make** (Make is preinstalled on macOS; on Linux install `make`).
+- For manually loading the extension: Chrome/Chromium or Firefox.
 
-## Quick Start
+You do **not** need Node, pnpm, Python or uv on your machine. All commands run inside a Docker
+container (`docker/tools/Dockerfile`), so every teammate and CI use the same versions. The
+`node_modules/` and `backend/.venv/` folders that appear after installation contain Linux binaries
+on purpose — use the Docker commands below instead of a native toolchain.
 
-### 1. Configure environment
+## Quick start
 
 ```bash
+# 1. Local configuration (no secrets yet, safe defaults)
 cp .env.example .env
+
+# 2. Install JS dependencies and the Python virtualenv (inside Docker)
+make install
+
+# 3. Start backend + web app
+docker compose up --build
 ```
 
-Important variables in `.env`:
+Open:
 
-- `DATABASE_URL` (default SQLite path in container volume)
-- `BACKEND_CORS_ORIGINS` (`*` or comma-separated origins)
-- `ADMIN_USERNAME` (bootstrap/update admin account on startup)
-- `ADMIN_PASSWORD` (bootstrap/update admin password on startup)
+- Web app: <http://localhost:3000>
+- API docs: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/api/health> → `{"status":"ok","version":"0.1.0"}`
 
-### 2. Start the stack
+The web app should show "Backend is healthy — version 0.1.0". Stop the stack with `Ctrl+C` or
+`docker compose down` (the SQLite volume is kept).
+
+## Everyday commands
+
+All commands are wrappers around the Docker tools image. Run `make help` for the full list.
+
+| Command                             | What it does                                               |
+| ----------------------------------- | ---------------------------------------------------------- |
+| `make install`                      | `pnpm install` + `uv sync` inside Docker                   |
+| `make lint`                         | ESLint for all TypeScript packages                         |
+| `make format` / `make format-check` | Prettier write / check                                     |
+| `make typecheck`                    | `tsc --noEmit` for shared, extension and web               |
+| `make test`                         | Vitest for shared, extension and web                       |
+| `make backend-lint`                 | Ruff check + format check                                  |
+| `make backend-test`                 | pytest                                                     |
+| `make build`                        | Extension (Chrome) + web app production build              |
+| `make build-firefox`                | Extension (Firefox) production build                       |
+| `make verify`                       | The complete Definition of Done locally                    |
+| `make up` / `make down`             | Start / stop backend + web app                             |
+| `make backend-dev`                  | Backend with auto-reload on <http://localhost:8000>        |
+| `make dev-web`                      | Vite dev server with hot reload on <http://localhost:5173> |
+
+Raw form if you prefer it:
 
 ```bash
-docker compose up --build -d
+docker compose run --rm -T tools pnpm -r test
+docker compose run --rm -T tools sh -c "cd backend && uv run pytest"
 ```
 
-Open `http://localhost:3000`.
+## Load the extension
 
-### 3. API docs
+Build it first (Chrome: `make build`, Firefox: `make build-firefox`).
 
-- OpenAPI docs: `http://localhost:3000/api/docs`
+### Chrome / Chromium / Edge
 
-## Web App Routes
+1. Open `chrome://extensions`.
+2. Enable **Developer mode** (top right).
+3. Click **Load unpacked** and select `apps/extension/.output/chrome-mv3`.
+4. Click the Project Pocket icon in the toolbar → the popup shows "Project Pocket — hello".
 
-- `login.html`: sign in/register + forced password-change modal
-- `index.html`: main user app (all saves, recipes, music, domains, settings)
-- `admin.html`: admin-only user/role management
+### Firefox
 
-## Browser Extension
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…**.
+3. Select `apps/extension/.output/firefox-mv3/manifest.json`.
+4. Open the extension popup from the toolbar.
 
-Install locally:
+A temporary Firefox add-on disappears when Firefox closes; that is normal for local development.
+`docker compose run --rm -T tools pnpm --filter extension zip` (or `zip:firefox`) will later
+produce store-ready archives.
 
-1. Open `chrome://extensions` (or `edge://extensions`)
-2. Enable Developer mode
-3. Load unpacked extension from `extension/`
+### Extension development
 
-Extension behavior:
+WXT's `dev` mode wants to launch a browser, which is not possible from inside a container. The
+workflow in this Docker-only setup is: edit code → `make build` (or `make build-firefox`) → click
+**Reload** on the extension card in Chrome, or reload the temporary add-on in Firefox. The popup
+test runs without a browser (`make test`).
 
-- Save current tab with optional tags, notes, recipe/music flags
-- Optional YouTube timestamp injection
-- Uses backend auth token for authenticated saves
-- Supports server URL, profile, and popup theme settings
-- Provides tag/profile suggestions from `/api/tags` and `/api/profiles`
+## Backend development
 
-Default server URL is `http://localhost:3000`.
-
-## API Summary
-
-Authentication:
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/change-password`
-- `POST /api/auth/enforce-password-change`
-- `POST /api/auth/logout`
-
-Admin:
-
-- `GET /api/users`
-- `PATCH /api/users/{username}`
-- `DELETE /api/users/{username}`
-- `POST /api/users/{username}/password/reset`
-- `POST /api/users/{username}/password/force-change`
-
-Pages and metadata:
-
-- `GET /api/pages` (filters, sorting, `limit`, `offset`)
-- `POST /api/pages`
-- `GET /api/pages/{page_id}`
-- `PATCH /api/pages/{page_id}`
-- `DELETE /api/pages/{page_id}`
-- `DELETE /api/pages?confirm=DELETE%20ALL`
-- `GET /api/music/genius-search`
-
-Import/export and lookups:
-
-- `GET /api/pages/export.csv`
-- `POST /api/pages/import.csv?source=native|pocket`
-- `GET /api/domains`
-- `GET /api/tags`
-- `GET /api/profiles`
-- `POST /api/ingredients/canonicalize`
-
-Auto-tag rules:
-
-- `GET /api/auto-tag-rules`
-- `POST /api/auto-tag-rules`
-- `DELETE /api/auto-tag-rules/{rule_id}`
-
-## Project Structure
-
-```text
-Project-Pocket_(Save_for_later)/
-├── docker-compose.yml
-├── .env.example
-├── backend/
-│   ├── main.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── database.py
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── admin_ui_bundle.js
-├── frontend/
-│   ├── nginx.conf
-│   ├── Dockerfile
-│   └── html/
-│       ├── login.html
-│       ├── index.html
-│       ├── admin.html
-│       ├── login.js
-│       ├── app.js
-│       ├── admin.js
-│       └── style.css
-└── extension/
-    ├── manifest.json
-    ├── background.js
-    ├── popup.html
-    ├── popup.js
-    └── icons/
+```bash
+make backend-dev        # uvicorn with --reload on port 8000
 ```
+
+Useful inside the tools container:
+
+```bash
+# Create a migration after adding/changing SQLModel models
+docker compose run --rm -T tools sh -c "cd backend && uv run alembic revision --autogenerate -m 'add pages'"
+
+# Apply migrations
+docker compose run --rm -T tools sh -c "cd backend && uv run alembic upgrade head"
+```
+
+The initial migration (`backend/alembic/versions/0001_initial.py`) is empty: there are no tables
+yet, it only proves the pipeline works.
+
+## Web app development
+
+```bash
+make dev-web            # http://localhost:5173, proxies /api to the backend
+```
+
+Start a backend first (`make backend-dev` or `docker compose up -d backend`). Vite proxies `/api`
+to `http://host.docker.internal:8000`, so the browser only ever talks to one origin.
+
+The production container serves the built files with nginx, which proxies `/api` to the `backend`
+Compose service. The PWA service worker/manifest are generated by `vite-plugin-pwa`.
+
+## Configuration
+
+Copy `.env.example` to `.env`; Docker Compose reads it automatically.
+
+| Variable              | Default                                       | Meaning                                   |
+| --------------------- | --------------------------------------------- | ----------------------------------------- |
+| `POCKET_ENVIRONMENT`  | `development`                                 | Environment label (logging/display).      |
+| `POCKET_CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Origins allowed to call the API directly. |
+| `WEB_PORT`            | `3000`                                        | Host port of the web container.           |
+| `BACKEND_PORT`        | `8000`                                        | Host port of the backend container.       |
+
+The backend loads settings via `pydantic-settings` with the `POCKET_` prefix
+(`backend/app/config.py`). `POCKET_DATABASE_URL` is set to an absolute path inside the container by
+`docker-compose.yml`; locally the default is `sqlite:///./data/pocket.db`.
+
+**Secrets:** this scaffold needs none. When an LLM API key is added, it must live only in `.env`
+(git-ignored) and be documented as a placeholder in `.env.example` — never commit a real key.
+
+## Docker
+
+| File                      | Purpose                                                                   |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `docker/tools/Dockerfile` | Dev toolchain: Node 24, pnpm 12, uv, Python 3.12 (not used in production) |
+| `backend/Dockerfile`      | FastAPI image; runs `alembic upgrade head` then uvicorn                   |
+| `apps/web/Dockerfile`     | Multi-stage: build with Node, serve static files with nginx               |
+| `docker-compose.yml`      | Backend + web + optional `tools` profile                                  |
+
+The SQLite database lives on the named volume `pocket-data` (mounted at `/app/data`). Removing the
+volume deletes all data: `docker compose down -v`.
+
+## Tests
+
+| Layer           | Tool                     | Command                         |
+| --------------- | ------------------------ | ------------------------------- |
+| Shared package  | Vitest                   | `make test` (runs all TS tests) |
+| Extension popup | Vitest + Testing Library | `make test`                     |
+| Web start page  | Vitest + Testing Library | `make test`                     |
+| Backend         | pytest                   | `make backend-test`             |
+
+CI (`.github/workflows/ci.yml`) runs lint, format check, type check, tests and both extension
+builds plus the web build on every push/PR.
+
+## Troubleshooting
+
+- **"Cannot connect to the Docker daemon"** → start Docker Desktop.
+- **Port already in use** → change `WEB_PORT` / `BACKEND_PORT` in `.env`.
+- **Install after switching host OS/arch** → delete `node_modules/` and `backend/.venv/`, then
+  `make install` again (they contain Linux binaries).
+- **Web app says it cannot reach the backend** → check `docker compose ps` and
+  <http://localhost:8000/api/health>.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

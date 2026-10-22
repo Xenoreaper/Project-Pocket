@@ -1,0 +1,10 @@
+{
+  // This package only contains plain TypeScript (no DOM, no Node APIs),
+  // so it inherits everything else from the monorepo base config.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src"]
+}

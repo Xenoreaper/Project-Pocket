@@ -1,0 +1,27 @@
+{
+  // Shared TypeScript settings. Each workspace package has its own
+  // tsconfig.json that extends this file, so strictness rules only live here.
+  "compilerOptions": {
+    // Modern browsers and Node 22+ understand ES2022; no down-levelling needed.
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    // "bundler" lets TypeScript resolve package "exports" maps and TS sources
+    // inside the monorepo (used by the shared package) like Vite does.
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    // Indexing an array/record may return undefined. This catches a whole
+    // class of runtime bugs and forces us to handle the empty case.
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    // Only type-imports may be imported without `import type`, which keeps
+    // transpilers (Vite/esbuild) fast and unambiguous.
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  }
+}

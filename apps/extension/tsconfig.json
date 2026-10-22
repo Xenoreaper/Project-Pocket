@@ -1,0 +1,16 @@
+// TypeScript settings for the extension.
+//
+// WXT generates `.wxt/tsconfig.json` during `wxt prepare` (also run on
+// install). It contains the auto-import types and the correct `paths`, so we
+// extend it instead of duplicating them. Only project-specific strictness is
+// added here.
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  }
+}

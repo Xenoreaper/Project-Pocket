@@ -1,0 +1,23 @@
+# Editor defaults so all teammates (and their IDEs) produce the same whitespace.
+# See https://editorconfig.org for the meaning of each key.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+# Empty lines are allowed to contain the previous line's indentation.
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[*.md]
+# Trailing spaces are meaningful in Markdown (hard line break), so keep them.
+trim_trailing_whitespace = false
+
+[Makefile]
+# Make requires real tab characters for recipe lines.
+indent_style = tab

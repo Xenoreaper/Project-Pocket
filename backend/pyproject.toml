@@ -1,0 +1,61 @@
+[project]
+# Metadata for the backend package. `uv sync` reads this file and creates
+# `.venv/` from it; Docker uses the same file, so local and container builds
+# are identical.
+name = "project-pocket-backend"
+version = "0.1.0"
+description = "FastAPI backend for Project Pocket (scaffold)."
+requires-python = ">=3.12"
+dependencies = [
+  # Web framework + ASGI server.
+  "fastapi>=0.159,<0.160",
+  "uvicorn[standard]>=0.54,<0.55",
+  # ORM (SQLModel = SQLAlchemy + Pydantic) and database migrations.
+  "sqlmodel>=0.0.48,<0.1",
+  "alembic>=1.20,<2",
+  # Typed settings loaded from environment variables / .env.
+  "pydantic-settings>=2.16,<3",
+]
+
+[dependency-groups]
+# Development-only tools. `uv sync --no-dev` in Docker skips this group.
+dev = [
+  "pytest>=9.1,<10",
+  "httpx>=0.28,<0.29", # required by FastAPI's TestClient
+  "ruff>=0.17,<0.18",  # linter + formatter
+]
+
+[build-system]
+# Hatchling turns the `app` package into an installable project, which lets
+# `uv sync` install it in editable mode (imports work from tests).
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Make `import app...` work without installing the project globally.
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# These folders contain generated code or local environments.
+extend-exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+# pycodestyle (E), pyflakes (F), import sorting (I), bugbear (B),
+# pyupgrade (UP), flake8-simplify (SIM).
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+# `backend/alembic/` is a local folder; without this hint Ruff would treat the
+# installed Alembic library as first-party code and sort it into the wrong group.
+known-third-party = ["alembic"]
+
+[tool.ruff.format]
+# Ruff uses Black-compatible formatting by default.
+quote-style = "double"

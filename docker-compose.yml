@@ -1,29 +1,88 @@
+# Project Pocket — local/production stack.
+#
+# `docker compose up --build` starts the backend and the web app.
+# All tooling (pnpm, uv, tests) runs in the optional "tools" service:
+#   docker compose run --rm -T tools pnpm install
+# The "tools" profile means it is not started by `up` unless requested.
+#
+# Values such as ports come from .env (copy .env.example first).
+
+name: project-pocket
+
 services:
   backend:
-    build: ./backend
-    container_name: pocket-backend
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - pocket-db:/app/data
-    networks:
-      - pocket-net
-
-  frontend:
-    build: ./frontend
-    container_name: pocket-frontend
-    restart: unless-stopped
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      # Absolute path inside the container; the volume below keeps it on the
+      # host between restarts. Four slashes = absolute path.
+      POCKET_DATABASE_URL: sqlite:////app/data/pocket.db
+      POCKET_ENVIRONMENT: ${POCKET_ENVIRONMENT:-development}
+      POCKET_CORS_ORIGINS: ${POCKET_CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - pocket-net
+      # Handy for API docs (http://localhost:8000/docs) and for the extension.
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - pocket-data:/app/data
+    healthcheck:
+      # Python is already in the image; urllib avoids installing curl.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
-networks:
-  pocket-net:
-    driver: bridge
+  web:
+    build:
+      # The web build imports packages/shared, so the context must be the repo
+      # root; the Dockerfile copies only what it needs.
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    depends_on:
+      backend:
+        # Wait until /api/health answers, otherwise nginx would briefly proxy
+        # to a dead backend during the first page load.
+        condition: service_healthy
+    healthcheck:
+      # Use 127.0.0.1, not "localhost": inside the container localhost may
+      # resolve to IPv6 (::1) while nginx listens on IPv4 only.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Developer tooling (not started by `docker compose up`) ────────────────
+  tools:
+    profiles: ["tools"]
+    build:
+      context: ./docker/tools
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    # Lets tools containers reach a backend running on the host (used by
+    # `make dev-web`). Docker Desktop already provides this name; the explicit
+    # mapping also makes it work on Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Source code from the host. node_modules/.venv are created here too, but
+      # they are git-ignored and Linux-specific on purpose.
+      - .:/workspace
+      # Named volumes keep downloaded packages between runs (fast installs).
+      - pnpm-store:/pnpm/store
+      - uv-cache:/root/.cache/uv
 
 volumes:
-  pocket-db:
+  pocket-data: # SQLite database file
+  pnpm-store: # pnpm package cache
+  uv-cache: # uv download cache

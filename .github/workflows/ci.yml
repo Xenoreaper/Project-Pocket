@@ -1,0 +1,98 @@
+# Continuous integration: every push and pull request.
+#
+# Two independent jobs keep failures easy to read:
+#   typescript — lint, format, type check, tests, both browser builds, web build
+#   backend    — Ruff, Alembic migration smoke test, pytest
+#
+# No deployment and no secrets. Versions are pinned to the same major versions
+# as the Docker toolchain (Node 24, pnpm 12, Python 3.12) so CI matches local
+# development.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A new push cancels the previous run of the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typescript:
+    name: TypeScript (lint, types, tests, builds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install pnpm first; setup-node's cache option needs it.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # --frozen-lockfile fails if package.json and pnpm-lock.yaml disagree,
+      # which prevents "works on my machine" installs.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      # Building both targets proves the extension is really cross-browser.
+      - name: Build extension (Chrome)
+        run: pnpm --filter extension build
+
+      - name: Build extension (Firefox)
+        run: pnpm --filter extension build:firefox
+
+      - name: Build web app
+        run: pnpm --filter web build
+
+  backend:
+    name: Python (lint, migrations, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      # Smoke test the migration pipeline against a throwaway SQLite file.
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+        env:
+          POCKET_DATABASE_URL: sqlite:///./data/ci-test.db
+
+      - name: Tests
+        run: uv run pytest
