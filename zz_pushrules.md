@@ -55,6 +55,26 @@ git push origin main
 Commit types: `feat`, `fix`, `test`, `docs`, `chore`, `refactor`.
 Scopes: `extension`, `web`, `backend`, `shared`, `docs`, `ci`, `docker`.
 
+### Shortcut: one command for both remotes
+
+A plain `git push` / `git pull` only talks to `hse`. To do both remotes in one go,
+set up two aliases once per clone (stored in `.git/config`, not committed):
+
+```bash
+git config alias.pullall '!git pull hse main --no-rebase && git pull origin main --no-rebase'
+git config alias.pushall '!git push hse main && git push origin main'
+```
+
+Then the daily workflow becomes:
+
+```bash
+git pullall                   # step 1: pull from hse, then origin
+git pushall                   # step 6: push to hse, then origin
+```
+
+`&&` runs the second command only if the first one succeeded, so if `hse` rejects
+the push, nothing is pushed to `origin` either and both stay identical.
+
 ---
 
 ## Fixing mistakes
