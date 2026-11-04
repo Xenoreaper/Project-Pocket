@@ -22,7 +22,7 @@ Goal: a monorepo where every part installs, builds, runs and has at least one te
 
 **Verified with:** `make verify` and `docker compose build` (see README).
 
-## M1 — Local-first saving in the extension (current)
+## M1 — Local-first saving in the extension (done)
 
 Goal: right-click a page, choose a category, save it locally; works offline.
 
@@ -36,11 +36,11 @@ Goal: right-click a page, choose a category, save it locally; works offline.
 - [x] Toolbar badge feedback (`✓` saved, `↻` updated, `!` error)
 - [x] Cross-browser WebExtension APIs only (`browser.*`, Chrome + Firefox MV3 builds)
 - [x] Vitest tests for shared model, storage, capture, menu/save flow and popup (62 tests)
-- [~] Manual smoke test in Chrome and Firefox (load both builds, save/edit/delete a real page)
+- [x] Manual smoke test in Chromium and Firefox (load both builds, save/edit/delete a real page)
 
 **Verified with:** `make lint`, `make typecheck`, `make format-check`, `make test` and
-`make build-all`. The manual browser smoke test is intentionally left for the team. Decisions and
-data format are documented in
+`make build-all`, plus the manual browser smoke test by the team. Decisions and data format are
+documented in
 [`decisions/0002-local-first-storage.md`](decisions/0002-local-first-storage.md).
 
 ## M2 — Sync and multi-user
