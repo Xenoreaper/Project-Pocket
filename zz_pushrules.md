@@ -2,10 +2,10 @@
 
 Cheat sheet for the team. This repository lives in **two** GitHub repos and both must stay identical.
 
-| Remote   | URL                                                          | Role                                        |
-|----------|--------------------------------------------------------------|---------------------------------------------|
-| `hse`    | https://github.com/hse-classes/llm-ws26-bananenkrieger.git   | Course repo — **default upstream** of `main` |
-| `origin` | https://github.com/Xenoreaper/Project-Pocket.git             | Our own repo — mirror                       |
+| Remote   | URL                                                        | Role                                         |
+| -------- | ---------------------------------------------------------- | -------------------------------------------- |
+| `hse`    | https://github.com/hse-classes/llm-ws26-bananenkrieger.git | Course repo — **default upstream** of `main` |
+| `origin` | https://github.com/Xenoreaper/Project-Pocket.git           | Our own repo — mirror                        |
 
 `main` tracks `hse/main`, so a plain `git push` / `git pull` talks to `hse`.
 `origin` must always be pushed **explicitly**.
