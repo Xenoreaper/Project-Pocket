@@ -54,6 +54,14 @@ pocket.
 - [ ] Extension sync button with retry and conflict handling (no data loss offline)
 - [ ] Web app login and item list
 
+**Acceptance criteria:**
+
+- Saving a page still works offline and without an account; sync is an explicit user action.
+- The extension can be linked to a self-hosted server with its URL and an account.
+- A failed sync loses no local data and can be retried.
+- Syncing the same page twice does not create a second item on the server.
+- Two users each see only their own items, in the API and in the web app.
+
 ## M3 — Extraction (recipes first)
 
 Goal: script-based extraction first, LLM only as a validated fallback.
@@ -64,14 +72,30 @@ Goal: script-based extraction first, LLM only as a validated fallback.
 - [ ] LLM provider interface implementation (at least one provider) behind a config flag
 - [ ] Tests with saved HTML fixtures; LLM mocked, no network
 
-## M4 — Browse, filter, tags
+**Acceptance criteria:**
 
-Goal: the web app becomes the pocket UI.
+- Synced recipe pages are processed automatically; no user action is needed.
+- A page with valid schema.org/Recipe JSON-LD is extracted without calling an LLM.
+- The LLM runs only after script-based extraction has failed, and the backend works without one.
+- Every stored result passes schema validation; an invalid result is reported, never saved.
+- The swappable provider is chosen by configuration, and API keys stay out of the repository.
+
+## M4 — Browse & edit
+
+Goal: the web app becomes the mobile-friendly pocket UI for browsing and editing recipes.
 
 - [ ] Category/tag filters, search, sorting
 - [ ] Item detail view (recipe ingredients/instructions)
+- [ ] Edit extracted recipes
 - [ ] Manual tags and notes
 - [ ] Responsive/mobile check, PWA install test
+
+**Acceptance criteria:**
+
+- A user can find a saved item by search, category or tag, and sort the list.
+- A recipe's ingredients and instructions can be read and edited; edits are validated and persist.
+- Edited fields are not silently overwritten by a later extraction.
+- All of the above works at phone width, and the PWA can be installed.
 
 ## M5 — Export
 
@@ -82,17 +106,50 @@ Goal: get data out of the pocket.
 - [ ] Shopping-list export (later)
 - [ ] Tests for every exporter; no real Mealie instance required in tests
 
+**Acceptance criteria:**
+
+- A user can download their own items as CSV; other users' items are never included.
+- A recipe can be sent to Mealie and appears there with its ingredients and instructions.
+- A failed Mealie export shows a clear error and leaves the stored recipe unchanged.
+- The Mealie URL and token are configured outside the repository.
+
 ## M6 — Polish & course deliverables
 
 - [ ] End-to-end test (Playwright)
 - [ ] Error states, empty states, accessibility pass
 - [ ] Final documentation, exam-ready walkthrough, demo script
 
+## Later
+
+Planned direction after M6. These items need their own scope and acceptance criteria before work
+starts.
+
+- [ ] DIY projects: extraction plugin with bill of materials
+- [ ] Lyrics: extraction plugin and lyrics analysis
+- [ ] Video sources: transcripts via yt-dlp and Whisper
+- [ ] GitHub repositories as a source
+- [ ] Mobile app: wrap the PWA with Capacitor
+
 ## Backlog
 
 New feature ideas are added here as ready-to-paste GitHub issue drafts before they are implemented.
 Copy the title, description and acceptance criteria into GitHub Projects; do not implement directly
 from the backlog without agreeing on scope.
+
+### Filter by tag and sort in the popup
+
+**Title:** `feat(extension): add tag filter and sorting to the popup`
+
+**Description:** The product vision lists sorting and filtering by category and tags. The popup
+filters by category, but tags are only matched by the text search and the order is fixed to newest
+first.
+
+**Acceptance criteria:**
+
+- The popup can filter by one tag, combined with the category filter and the search.
+- Tag matching ignores case, as tag normalisation does.
+- The list can be sorted at least by newest, oldest and title.
+- Tests cover the combined filters and each sort order.
 
 ### Rename and delete custom categories
 
