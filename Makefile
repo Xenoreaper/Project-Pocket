@@ -8,7 +8,7 @@
 COMPOSE ?= docker compose
 TOOLS = $(COMPOSE) run --rm -T tools
 
-.PHONY: help install lint lint-fix format format-check typecheck test build build-firefox build-all backend-lint backend-test verify up down logs dev-web dev-backend
+.PHONY: help install lint lint-fix format format-check typecheck test build build-firefox build-all backend-lint backend-test verify up down logs dev-web backend-dev
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -61,7 +61,7 @@ down: ## Stop the stack and remove containers (data volume is kept)
 logs: ## Follow logs of the running stack
 	$(COMPOSE) logs -f
 
-dev-backend: ## Run the backend with auto-reload on http://localhost:8000
+backend-dev: ## Run the backend with auto-reload on http://localhost:8000
 	$(COMPOSE) run --rm -T -p 8000:8000 tools sh -c "cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
 
 dev-web: ## Run the Vite dev server on http://localhost:5173 (a backend must be running)
