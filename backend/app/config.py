@@ -12,6 +12,7 @@ git-ignored `.env` file only.
 
 from functools import lru_cache
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
@@ -49,6 +50,52 @@ class Settings(BaseSettings):
     # Comma-separated list, parsed by `cors_origin_list`. A string (instead of
     # a list) keeps .env files readable and avoids JSON-in-env quoting.
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    # Local accounts. Closing registration matters on a publicly reachable
+    # server; it does not affect existing accounts or Keycloak users.
+    allow_registration: bool = True
+    # `ge=1` rejects a zero or negative lifetime when the app starts.
+    token_lifetime_days: int = Field(default=30, ge=1)
+
+    # Optional Keycloak login. Leaving both values empty disables it.
+    # Issuer example: http://localhost:8080/realms/pocket
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    # Only needed when the backend reaches Keycloak under another address than
+    # the browser does, e.g. inside Docker, where "localhost" is the container.
+    oidc_jwks_url: str = ""
+
+    @model_validator(mode="after")
+    def _check_oidc_settings(self) -> "Settings":
+        """
+        Refuse half-finished Keycloak settings when the app starts.
+
+        Without this check, a forgotten client ID would silently turn Keycloak
+        login off, and the mistake would only show up as failing logins.
+        """
+        if bool(self.oidc_issuer) != bool(self.oidc_client_id):
+            raise ValueError("Set POCKET_OIDC_ISSUER and POCKET_OIDC_CLIENT_ID together.")
+        return self
+
+    @property
+    def oidc_enabled(self) -> bool:
+        """Return whether Keycloak login is configured."""
+        return bool(self.oidc_issuer and self.oidc_client_id)
+
+    @property
+    def oidc_issuer_normalized(self) -> str:
+        """
+        Return the issuer without a trailing slash.
+
+        Keycloak writes the issuer into every token without one, and the check
+        compares the exact string.
+        """
+        return self.oidc_issuer.rstrip("/")
+
+    @property
+    def oidc_jwks_endpoint(self) -> str:
+        """Return the URL of Keycloak's public signing keys (JWKS)."""
+        return self.oidc_jwks_url or f"{self.oidc_issuer_normalized}/protocol/openid-connect/certs"
 
     @property
     def cors_origin_list(self) -> list[str]:

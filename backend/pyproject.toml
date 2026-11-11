@@ -15,6 +15,10 @@ dependencies = [
   "alembic>=1.20,<2",
   # Typed settings loaded from environment variables / .env.
   "pydantic-settings>=2.16,<3",
+  # Password hashing for local accounts (Argon2id).
+  "argon2-cffi>=25.1,<26",
+  # Verifies Keycloak's signed tokens; the "crypto" extra adds RSA support.
+  "pyjwt[crypto]>=2.15,<3",
 ]
 
 [dependency-groups]

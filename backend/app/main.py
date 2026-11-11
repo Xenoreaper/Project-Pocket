@@ -10,7 +10,9 @@ can create a fresh app with different settings.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.items import router as items_router
 from app.config import get_settings
 
 
@@ -26,7 +28,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        description="Project Pocket backend — scaffold with a health endpoint.",
+        description="Project Pocket backend: accounts and synced pages.",
     )
 
     # CORS lets browser code on another origin (extension, Vite dev server)
@@ -44,6 +46,8 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(items_router, prefix="/api")
 
     return app
 

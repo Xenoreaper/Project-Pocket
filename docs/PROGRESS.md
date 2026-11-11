@@ -48,16 +48,23 @@ documented in
 Goal: an explicit sync sends local items to the self-hosted backend; every user sees only their own
 pocket.
 
-- [ ] User accounts (registration/login) and session handling
-- [ ] `SavedItem` SQLModel model + first real Alembic migration
-- [ ] `POST /api/items` and `GET /api/items` scoped to the authenticated user
+- [~] User accounts (registration/login) and session handling (backend built)
+- [~] `SavedItem` SQLModel model + first real Alembic migration (built, Docker check open)
+- [~] `POST /api/items` and `GET /api/items` scoped to the authenticated user (built, Docker check
+  open)
+- [~] Optional Keycloak login via OpenID Connect (backend token check built)
+- [ ] Optional Keycloak container with a test realm (Compose profile)
+- [ ] Extension connection settings with local and Keycloak login
 - [ ] Extension sync button with retry and conflict handling (no data loss offline)
-- [ ] Web app login and item list
+- [ ] Web app login (local and Keycloak) and item list
 
 **Acceptance criteria:**
 
 - Saving a page still works offline and without an account; sync is an explicit user action.
 - The extension can be linked to a self-hosted server with its URL and an account.
+- Without Keycloak configuration, the whole stack works with local accounts only.
+- With Keycloak configured, a user can log in through it in the web app and in the extension in
+  both browsers; a token from another client or issuer is rejected.
 - A failed sync loses no local data and can be retried.
 - Syncing the same page twice does not create a second item on the server.
 - Two users each see only their own items, in the API and in the web app.
