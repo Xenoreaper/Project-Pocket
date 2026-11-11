@@ -182,6 +182,19 @@ browser stores, some PDF viewers) cannot be injected.
 To check for errors, open the extension's console: the **service worker** link on the extension card
 in `chrome://extensions`, or **Inspect** in `about:debugging` for Firefox.
 
+### Browser for AI agents (MCP)
+
+The repository contains an MCP server that gives AI agents such as Claude Code a browser: a
+headless Chromium in Docker with the extension loaded. The agent can open the popup, click, read the
+page and take screenshots. Details for agents are in `AGENTS.md` §9.
+
+1. Build the extension: `make build`.
+2. Start Claude Code in the repository and approve the `pocket-browser` server when asked (or run
+   `/mcp`). Claude Code starts `docker/playwright-mcp/run.sh` itself.
+
+Only Docker is needed. The server cannot use the native right-click menu or Firefox, so the manual
+smoke test above stays necessary.
+
 ### Extension development
 
 WXT's `dev` mode wants to launch a browser, which is not possible from inside a container. The

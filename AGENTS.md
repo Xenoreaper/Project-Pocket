@@ -85,9 +85,12 @@ docs/
   ARCHITECTURE.md   # architecture overview incl. Mermaid diagrams — keep up to date
   PROGRESS.md       # roadmap, milestones, status, backlog — keep up to date
   decisions/        # short architecture decision records (ADR), one file per decision
+  Bewertungsschema.ods  # course grading rubric (reference only)
 docker-compose.yml
 docker/tools/       # Docker-only dev toolchain (Node, pnpm, uv, Python)
+docker/playwright-mcp/  # browser MCP server for agents (see §9)
 .env.example
+.mcp.json           # MCP servers that Claude Code starts for this project
 AGENTS.md           # this file
 CLAUDE.md           # imports AGENTS.md for Claude Code
 ```
@@ -180,3 +183,17 @@ docker compose run --rm -T tools pnpm -r test
 docker compose run --rm -T tools sh -c "cd backend && uv run pytest"
 docker compose run --rm -T tools sh -c "cd backend && uv run alembic upgrade head"
 ```
+
+### Browser testing for agents (MCP)
+
+`.mcp.json` registers the `pocket-browser` server (`docker/playwright-mcp/run.sh`): a headless
+Chromium in Docker with the Chrome build of the extension loaded. Use it to check UI changes in the
+popup before handing work back.
+
+- Run `make build` first; the server loads `apps/extension/.output/chrome-mv3`.
+- The popup is at `chrome-extension://klofmejghlpmlnjbaladlgfficdlemji/popup.html`. The ID stays
+  fixed because Chromium derives it from the mount path `/ext`.
+- The local stack is reachable at `http://localhost:3000` and `http://localhost:8000`.
+- Seed or inspect the pocket with `browser_evaluate` on the popup page, using `chrome.storage.local`.
+- It cannot click the native right-click menu or run Firefox. Those remain manual smoke tests
+  (README, "Smoke test"); say so when you hand back extension work.
