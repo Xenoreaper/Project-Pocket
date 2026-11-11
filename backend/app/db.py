@@ -2,14 +2,15 @@
 Database engine and session handling.
 
 SQLModel wraps SQLAlchemy, so this file is deliberately small: one engine per
-process and one short-lived session per request. The first real models (Page,
-User, …) arrive in the next milestone; Alembic already points at
-`SQLModel.metadata` so they will be picked up automatically.
+process and one short-lived session per request. The tables are defined in
+`app/models.py`.
 """
 
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
+from sqlalchemy import Engine, event
 from sqlmodel import Session, create_engine
 
 from app.config import get_settings
@@ -35,6 +36,30 @@ def _ensure_sqlite_parent_directory(database_url: str) -> None:
     Path(raw_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
 
 
+def enable_sqlite_foreign_keys(target: Engine) -> None:
+    """
+    Make SQLite enforce foreign keys on every new connection of an engine.
+
+    SQLite ignores foreign keys unless each connection switches them on. Without
+    this, an item could point at a user who does not exist, and `ON DELETE
+    CASCADE` would do nothing. `event.listens_for` registers a callback that
+    SQLAlchemy runs whenever it opens a connection.
+
+    Careful with later migrations: Alembic's batch mode recreates tables, so
+    rebuilding a parent table such as `users` needs this switched off first, or
+    the cascade would delete the child rows.
+
+    Args:
+        target: the engine to configure. Tests pass their own temporary engine.
+    """
+
+    @event.listens_for(target, "connect")
+    def _set_foreign_keys(dbapi_connection: Any, _connection_record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 _settings = get_settings()
 _ensure_sqlite_parent_directory(_settings.database_url)
 
@@ -48,6 +73,9 @@ engine = create_engine(
     if _settings.database_url.startswith("sqlite")
     else {},
 )
+
+if _settings.database_url.startswith("sqlite"):
+    enable_sqlite_foreign_keys(engine)
 
 
 def get_session() -> Generator[Session, None, None]:

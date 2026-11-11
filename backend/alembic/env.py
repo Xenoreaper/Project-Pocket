@@ -5,9 +5,8 @@ Alembic calls `run_migrations_online()` (or `_offline()` in --sql mode). We use
 the application's own engine and `SQLModel.metadata`, so migrations always see
 exactly the models the app sees.
 
-When real models are added (e.g. app/models.py), import them *below* this
-docstring so they register their tables in SQLModel.metadata before
-`--autogenerate` runs. The import looks unused but has that side effect.
+The `app.models` import below looks unused, but it registers the tables in
+SQLModel.metadata before `--autogenerate` or `alembic check` compares them.
 """
 
 from logging.config import fileConfig
@@ -15,6 +14,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlmodel import SQLModel
 
+from app import models  # noqa: F401
 from app.config import get_settings
 
 # Alembic reads the [loggers] section of alembic.ini and configures Python
@@ -29,8 +29,6 @@ settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # `target_metadata` is what --autogenerate compares the database against.
-# Import models here (e.g. "from app import models") once they exist;
-# otherwise Alembic would think every table was deleted.
 target_metadata = SQLModel.metadata
 
 
