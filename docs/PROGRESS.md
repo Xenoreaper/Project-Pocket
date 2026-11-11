@@ -49,10 +49,11 @@ Goal: an explicit sync sends local items to the self-hosted backend; every user 
 pocket.
 
 - [~] User accounts (registration/login) and session handling (backend built)
-- [~] `SavedItem` SQLModel model + first real Alembic migration (built, Docker check open)
-- [~] `POST /api/items` and `GET /api/items` scoped to the authenticated user (built, Docker check
-  open)
+- [~] `SavedItem` SQLModel model + first real Alembic migration (built and run in Docker; docs open)
+- [~] `POST /api/items` and `GET /api/items` scoped to the authenticated user (built and run in
+  Docker; docs open)
 - [~] Optional Keycloak login via OpenID Connect (backend token check built)
+- [x] Shared API types and response guards in `packages/shared` (`@project-pocket/shared/api`)
 - [ ] Optional Keycloak container with a test realm (Compose profile)
 - [ ] Extension connection settings with local and Keycloak login
 - [ ] Extension sync button with retry and conflict handling (no data loss offline)

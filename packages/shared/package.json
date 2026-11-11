@@ -6,7 +6,8 @@
   "type": "module",
   "//": "We expose the TypeScript source directly. Vite/WXT compile workspace packages, and tsc type-checks them, so there is no separate build step and no stale dist/ folder.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts"
   },
   "types": "./src/index.ts",
   "scripts": {
