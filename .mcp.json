@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "pocket-browser": {
-      "command": "./docker/playwright-mcp/run.sh",
-      "args": []
-    }
-  }
-}

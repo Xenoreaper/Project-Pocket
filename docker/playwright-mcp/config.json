@@ -1,8 +1,0 @@
-{
-  "browser": {
-    "browserName": "chromium",
-    "launchOptions": {
-      "args": ["--disable-extensions-except=/ext", "--load-extension=/ext"]
-    }
-  }
-}
