@@ -84,13 +84,12 @@ packages/
 docs/
   ARCHITECTURE.md   # architecture overview incl. Mermaid diagrams — keep up to date
   PROGRESS.md       # roadmap, milestones, status, backlog — keep up to date
+  DEVLOG.md         # development log: current state + one entry per task — keep up to date
   decisions/        # short architecture decision records (ADR), one file per decision
   Bewertungsschema.ods  # course grading rubric (reference only)
 docker-compose.yml
 docker/tools/       # Docker-only dev toolchain (Node, pnpm, uv, Python)
-docker/playwright-mcp/  # browser MCP server for agents (see §9)
 .env.example
-.mcp.json           # MCP servers that Claude Code starts for this project
 AGENTS.md           # this file
 CLAUDE.md           # imports AGENTS.md for Claude Code
 ```
@@ -119,6 +118,11 @@ If the actual layout differs from this, trust the code, then point out the misma
 - When a task is big, first post a short **plan** (steps, files to touch, open questions) and wait for OK.
 - Update `docs/PROGRESS.md` when a task changes the status of a milestone. Update `docs/ARCHITECTURE.md`
   when components or data flows change. Add an ADR in `docs/decisions/` for every significant decision.
+- After every task, update `docs/DEVLOG.md`: rewrite "Current state" and add a log entry at the top
+  (date, what was done and why, how it was verified, what is next). Facts only; mark anything
+  unverified as such.
+- Pair-programmed commits name both of us: add a `Co-authored-by: Name <email>` line (the partner's
+  GitHub noreply address) at the end of the commit message you propose.
 - Feature ideas: add them to the *Backlog* in `PROGRESS.md` as ready-to-paste GitHub issue drafts
   (title + short description + acceptance criteria). We create the issues in GitHub Projects ourselves.
 
@@ -128,7 +132,7 @@ If the actual layout differs from this, trust the code, then point out the misma
 - [ ] Tests written and **passing**; linters and type checks clean (show the commands you ran)
 - [ ] Every new/changed file is commented as described in §2
 - [ ] No secrets added; `.env.example` updated if new config was introduced (and you warned us)
-- [ ] `docs/PROGRESS.md` / `docs/ARCHITECTURE.md` updated if affected
+- [ ] `docs/PROGRESS.md` / `docs/ARCHITECTURE.md` updated if affected; `docs/DEVLOG.md` always
 - [ ] Your reply contains:
   1. **Summary** — what changed and why (3–6 bullets)
   2. **Walkthrough** — the key files in reading order, explaining how the pieces connect
@@ -183,17 +187,3 @@ docker compose run --rm -T tools pnpm -r test
 docker compose run --rm -T tools sh -c "cd backend && uv run pytest"
 docker compose run --rm -T tools sh -c "cd backend && uv run alembic upgrade head"
 ```
-
-### Browser testing for agents (MCP)
-
-`.mcp.json` registers the `pocket-browser` server (`docker/playwright-mcp/run.sh`): a headless
-Chromium in Docker with the Chrome build of the extension loaded. Use it to check UI changes in the
-popup before handing work back.
-
-- Run `make build` first; the server loads `apps/extension/.output/chrome-mv3`.
-- The popup is at `chrome-extension://klofmejghlpmlnjbaladlgfficdlemji/popup.html`. The ID stays
-  fixed because Chromium derives it from the mount path `/ext`.
-- The local stack is reachable at `http://localhost:3000` and `http://localhost:8000`.
-- Seed or inspect the pocket with `browser_evaluate` on the popup page, using `chrome.storage.local`.
-- It cannot click the native right-click menu or run Firefox. Those remain manual smoke tests
-  (README, "Smoke test"); say so when you hand back extension work.
