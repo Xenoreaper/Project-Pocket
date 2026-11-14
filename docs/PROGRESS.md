@@ -56,8 +56,8 @@ pocket.
 - [x] Shared API types and response guards in `packages/shared` (`@project-pocket/shared/api`)
 - [x] Optional Keycloak connection and test container with a realm (Compose profile; checked with
       a real token)
-- [~] Server deployment behind a reverse proxy, with persistent Keycloak (`docs/DEPLOYMENT.md`; not
-  run on a server yet)
+- [x] Server deployment behind a reverse proxy, with persistent Keycloak (`docs/DEPLOYMENT.md`; runs
+      on the home server)
 - [ ] Extension connection settings with local and Keycloak login
 - [ ] Extension sync button with retry and conflict handling (no data loss offline)
 - [ ] Web app login (local and Keycloak) and item list

@@ -5,10 +5,10 @@ apps over HTTPS. Keycloak is optional: without it, Pocket uses its own local acc
 
 The examples use `pocket.example.org` and `auth.example.org`. Replace them with your host names.
 
-> **Status (2026-11-14):** the complete server setup ran in a local throwaway stack: no published
-> ports, Keycloak in production mode with PostgreSQL, the correct issuer behind forwarded headers,
-> and the realm import with its variable. **Not run yet:** a real server with a real reverse proxy
-> and certificate, and a browser login through it. Update this note after the first deployment.
+> **Status (2026-11-14):** first deployment done on the team's home server (Debian, nginx container
+> with a wildcard certificate). Health check, login options and Keycloak's issuer answered correctly
+> through the proxy, tested on the server itself. **Not checked yet:** access from outside the home
+> network, and a browser login (the web app has no login page yet).
 
 ## What runs where
 
@@ -105,6 +105,14 @@ curl -s https://auth.example.org/realms/pocket/.well-known/openid-configuration 
 
 Expected: `{"status":"ok",...}`, then the issuer and client ID, then a JSON document whose `issuer`
 is `https://auth.example.org/realms/pocket`. The issuer must equal `POCKET_OIDC_ISSUER` exactly.
+
+If the commands hang on the server itself, the router probably cannot route the public address back
+into the home network (no NAT loopback). Send the request straight to the local proxy instead by
+adding this to each `curl`:
+
+```bash
+--resolve pocket.example.org:443:127.0.0.1 --resolve auth.example.org:443:127.0.0.1
+```
 
 ## 5. Create users in Keycloak
 

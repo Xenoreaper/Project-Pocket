@@ -14,13 +14,23 @@ coding agent, following `AGENTS.md`.
 - **Works:** saving pages locally in the extension (Chromium + Firefox); backend with local
   accounts, Keycloak login checked against a real Keycloak, and the item sync API; server setup
   checked in a local throwaway stack.
-- **Next:** first deployment on the team's home server after `docs/DEPLOYMENT.md`, then task 6, the
-  extension's connection settings.
-- **Open checks:** the server setup has not run behind the real reverse proxy yet; no browser login
-  through Keycloak yet (no client has one); the sync flow has no client yet.
+- **Deployed:** Pocket and Keycloak run on the team's home server behind its nginx.
+- **Next:** task 6, the extension's connection settings.
+- **Open checks:** access to the server from outside the home network; no browser login through
+  Keycloak yet (no client has one); the sync flow has no client yet.
 - **Known gap:** `.env.example` lacks `KEYCLOAK_PORT` and `KEYCLOAK_ADMIN_PASSWORD`.
 
 ## Log
+
+### 2026-11-14: first deployment on the home server
+
+- Followed `docs/DEPLOYMENT.md` on the Debian server: cloned the repository, created `.env` from the
+  template with generated passwords, created the `proxy-pocket` network, installed the nginx
+  template, started the stack.
+- Verified on the server through nginx and its certificate: `/api/health` ok, `/api/auth/config`
+  shows the Keycloak issuer, Keycloak reports the same issuer.
+- Requests to the public address hang inside the home network (router without NAT loopback), so the
+  check used `curl --resolve`; added that hint to the guide. Access from outside is not checked yet.
 
 ### 2026-11-14: live checks of Keycloak and the server setup
 
