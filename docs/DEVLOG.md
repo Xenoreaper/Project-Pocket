@@ -10,14 +10,56 @@ coding agent, following `AGENTS.md`.
 
 ## Current state
 
-- **Milestone:** M2 (accounts and sync), task 4 of 10 done.
+- **Milestone:** M2 (accounts and sync), task 5 of 10 done.
 - **Works:** saving pages locally in the extension (Chromium + Firefox); backend with local
-  accounts, optional Keycloak token check and the item sync API.
-- **Next:** task 5, an optional Keycloak container with a test realm (Compose profile).
-- **Open checks:** no real Keycloak has been used yet; the sync flow has no client yet.
-- **Known gap:** `.env.example` still lacks the M2 settings (see 2026-11-11).
+  accounts, Keycloak login checked against a real Keycloak, and the item sync API; server setup
+  checked in a local throwaway stack.
+- **Next:** first deployment on the team's home server after `docs/DEPLOYMENT.md`, then task 6, the
+  extension's connection settings.
+- **Open checks:** the server setup has not run behind the real reverse proxy yet; no browser login
+  through Keycloak yet (no client has one); the sync flow has no client yet.
+- **Known gap:** `.env.example` lacks `KEYCLOAK_PORT` and `KEYCLOAK_ADMIN_PASSWORD`.
 
 ## Log
+
+### 2026-11-14: live checks of Keycloak and the server setup
+
+- After a reboot Docker networking worked again, so the open checks of the two entries below ran.
+- Test Keycloak: a token for `demo` from the real Keycloak 26.8.2 was accepted by the backend
+  (`/api/auth/me` returned the user, created on first use); a tampered token got 401.
+- Server setup in a throwaway project: no container published a port; Keycloak started in
+  production mode with PostgreSQL; called with forwarded headers it reported the public issuer;
+  the backend fetched the signing keys over the internal network; the imported client had the
+  redirect address from `POCKET_PUBLIC_URL`, PKCE `S256`, no password grant; the realm had no users.
+- Still open: the real server, its nginx and certificate, and a login in a browser.
+
+### 2026-11-14: server deployment files
+
+- Goal: run Pocket and Keycloak on the team's home server, where an nginx container already serves
+  other apps over HTTPS through one Docker network per app and a wildcard certificate.
+- Added `docker-compose.server.yml` (no published ports, shared proxy network) and
+  `docker-compose.server-keycloak.yml` (production mode, PostgreSQL, required passwords), a server
+  realm without demo user or password grant, an nginx template, an `.env` template and
+  `docs/DEPLOYMENT.md`.
+- Two override files instead of one, so a missing Keycloak password stops the start, while a server
+  without Keycloak needs no dummy values.
+- Verified: `docker compose config` for the merged files (ports removed, empty password rejected),
+  realm tests in pytest.
+- Not verified: anything on a real server, Keycloak's production mode, and whether Keycloak replaces
+  `${POCKET_PUBLIC_URL}` in the realm file during import.
+
+### 2026-11-14: Keycloak connection and test container (M2 task 5)
+
+- Decision: Keycloak stays optional. Pocket can be connected to an existing Keycloak, and Compose
+  gets a test Keycloak (profile `keycloak`, version 26.8.2) that only starts on request.
+- Added the test realm `docker/keycloak/pocket-realm.json` (public client `project-pocket` with PKCE,
+  user `demo`), passed the account and Keycloak settings through `docker-compose.yml`, and documented
+  both ways in the README.
+- Verified: realm checks in `backend/tests/test_keycloak_realm.py`, 76 pytest tests, Ruff.
+- Not verified yet: Prettier and the live login with the test Keycloak. Docker could not create
+  networks because the running kernel (7.2.14) no longer matches the installed modules (7.3.4); a
+  reboot fixes that.
+- The extension's redirect addresses are not in the realm yet; they follow in task 6.
 
 ### 2026-11-11: shared API types, development log (M2 task 4)
 
