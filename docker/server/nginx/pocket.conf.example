@@ -1,0 +1,60 @@
+# Reverse-proxy configuration for Project Pocket and its Keycloak.
+#
+# A template for an nginx that already terminates TLS for other apps and
+# reaches them through Docker networks. Copy it into the proxy's conf.d folder
+# and replace the two example host names (docs/DEPLOYMENT.md has the command).
+#
+# It assumes what the target server already provides:
+# - the certificate is configured globally and covers both host names;
+# - /etc/nginx/snippets/proxy.conf sets the X-Forwarded-* headers;
+# - a Docker DNS resolver is configured, which `set $upstream` needs.
+# Adjust the listen port and snippet paths if your proxy differs.
+
+# ── Web app and API ──────────────────────────────────────────────────────────
+server {
+    listen 8443 ssl;
+    server_name pocket.example.org;
+    # One synced page is at most 256 KB (backend limit); 1 MB leaves headroom
+    # and stops oversized uploads before they reach the backend.
+    client_max_body_size 1M;
+    include /etc/nginx/snippets/headers.conf;
+    include /etc/nginx/snippets/robots-deny.conf;
+
+    location / {
+        # The web container serves the app and forwards /api to the backend.
+        # A variable makes nginx look the name up at request time, so nginx
+        # still starts while this container is down.
+        set $upstream http://pocket-web:80;
+        proxy_pass $upstream;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+}
+
+# ── Keycloak (only with the "keycloak" profile) ──────────────────────────────
+server {
+    listen 8443 ssl;
+    server_name auth.example.org;
+    include /etc/nginx/snippets/headers.conf;
+    include /etc/nginx/snippets/robots-deny.conf;
+
+    # Keycloak sends large response headers (cookies, tokens) during login;
+    # nginx's default buffers are too small and would answer 502.
+    proxy_buffer_size 128k;
+    proxy_buffers 4 256k;
+    proxy_busy_buffers_size 256k;
+
+    # The admin console manages every user, so it is reachable from the local
+    # network only. Remove the include to manage Keycloak from outside.
+    location /admin/ {
+        include /etc/nginx/snippets/lan-only.conf;
+        set $upstream http://pocket-keycloak:8080;
+        proxy_pass $upstream;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+
+    location / {
+        set $upstream http://pocket-keycloak:8080;
+        proxy_pass $upstream;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+}

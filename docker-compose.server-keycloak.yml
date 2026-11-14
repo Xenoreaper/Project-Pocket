@@ -1,0 +1,66 @@
+# Project Pocket — server override: a persistent Keycloak behind the proxy.
+#
+# Use it on top of docker-compose.yml and docker-compose.server.yml, with the
+# "keycloak" profile enabled (see docs/DEPLOYMENT.md). It turns the throwaway
+# test Keycloak of the base file into one that is safe to reach from outside:
+# PostgreSQL instead of the in-container test database, production mode, no
+# demo user, and passwords that must be set in .env.
+#
+# `${VAR:?message}` stops Compose with that message if the variable is empty.
+# That is on purpose: without it, a forgotten .env entry would silently start
+# Keycloak with the public test password from the base file.
+
+services:
+  keycloak:
+    container_name: pocket-keycloak
+    # `start` is production mode: no dev shortcuts, strict hostname checks.
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env}
+      # Public address, e.g. https://auth.example.org. Keycloak writes it into
+      # every token as the issuer.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?Set KEYCLOAK_PUBLIC_URL in .env}
+      # TLS ends at the reverse proxy, so Keycloak itself speaks plain HTTP and
+      # reads the original scheme and host from the X-Forwarded-* headers.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}
+      # Used inside the realm file as ${POCKET_PUBLIC_URL}: the only address
+      # Keycloak may send users back to after login.
+      POCKET_PUBLIC_URL: ${POCKET_PUBLIC_URL:?Set POCKET_PUBLIC_URL in .env}
+    ports: !reset []
+    volumes:
+      # Same target path as in the base file, so this replaces the test realm
+      # with the server realm (no demo user, no password grant).
+      - ./docker/server/keycloak:/opt/keycloak/data/import:ro
+    networks:
+      - default
+      - proxy
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  keycloak-db:
+    profiles: ["keycloak"]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}
+    volumes:
+      # PostgreSQL 18 images keep their data below /var/lib/postgresql.
+      - keycloak-db-data:/var/lib/postgresql
+    healthcheck:
+      # pg_isready answers once the database accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  keycloak-db-data: # Keycloak users, sessions and realm settings

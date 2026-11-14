@@ -20,6 +20,15 @@ services:
       POCKET_DATABASE_URL: sqlite:////app/data/pocket.db
       POCKET_ENVIRONMENT: ${POCKET_ENVIRONMENT:-development}
       POCKET_CORS_ORIGINS: ${POCKET_CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # Accounts. Compose only passes variables listed here, so every new
+      # backend setting must also be added to this list.
+      POCKET_ALLOW_REGISTRATION: ${POCKET_ALLOW_REGISTRATION:-true}
+      POCKET_TOKEN_LIFETIME_DAYS: ${POCKET_TOKEN_LIFETIME_DAYS:-30}
+      # Optional Keycloak login; empty means local accounts only. See README,
+      # "Keycloak login (optional)".
+      POCKET_OIDC_ISSUER: ${POCKET_OIDC_ISSUER:-}
+      POCKET_OIDC_CLIENT_ID: ${POCKET_OIDC_CLIENT_ID:-}
+      POCKET_OIDC_JWKS_URL: ${POCKET_OIDC_JWKS_URL:-}
     ports:
       # Handy for API docs (http://localhost:8000/docs) and for the extension.
       - "${BACKEND_PORT:-8000}:8000"
@@ -61,6 +70,34 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+
+  # ── Keycloak for testing (not started by `docker compose up`) ─────────────
+  # Start with: docker compose --profile keycloak up -d
+  # A throwaway Keycloak with the test realm from docker/keycloak/. It is for
+  # development and demos only: start-dev uses an in-container database that
+  # is reset whenever the container is recreated. Production setups connect
+  # Pocket to their existing Keycloak instead (README).
+  keycloak:
+    profiles: ["keycloak"]
+    # Pinned version, so both of us and the demo run the same Keycloak.
+    image: quay.io/keycloak/keycloak:26.8.2
+    # --import-realm loads every *.json in /opt/keycloak/data/import on start.
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Admin console login (http://localhost:8080/admin). Test-only default;
+      # change it in .env if the container is reachable by others.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # The public address browsers use. Keycloak writes it into every token
+      # as the issuer, so it must equal POCKET_OIDC_ISSUER without the realm.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      # Still answer the backend, which calls http://keycloak:8080 from
+      # inside the Compose network to fetch the signing keys.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
 
   # ── Developer tooling (not started by `docker compose up`) ────────────────
   tools:

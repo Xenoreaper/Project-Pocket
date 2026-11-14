@@ -1,0 +1,33 @@
+# Project Pocket — server override: run behind an existing reverse proxy.
+#
+# This file changes docker-compose.yml for a server where one nginx (or
+# another reverse proxy) owns ports 80/443 and reaches every app through a
+# shared Docker network. Compose merges the files in the order given:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
+#
+# docs/DEPLOYMENT.md shows how to set COMPOSE_FILE in .env instead, so a plain
+# `docker compose up -d` uses both files.
+
+services:
+  backend:
+    # `!reset` removes the port mapping of the base file. The backend is then
+    # only reachable inside the Compose network, through the web container.
+    ports: !reset []
+
+  web:
+    # A fixed name, because the reverse proxy addresses the container by it.
+    container_name: pocket-web
+    ports: !reset []
+    networks:
+      # "default" keeps the connection to the backend; "proxy" adds the
+      # network the reverse proxy is attached to.
+      - default
+      - proxy
+
+networks:
+  proxy:
+    # `external` means Compose does not create or delete this network. Create
+    # it once with `docker network create proxy-pocket` and attach the proxy.
+    external: true
+    name: ${PROXY_NETWORK:-proxy-pocket}

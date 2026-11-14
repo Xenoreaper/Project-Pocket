@@ -85,10 +85,15 @@ docs/
   ARCHITECTURE.md   # architecture overview incl. Mermaid diagrams — keep up to date
   PROGRESS.md       # roadmap, milestones, status, backlog — keep up to date
   DEVLOG.md         # development log: current state + one entry per task — keep up to date
+  DEPLOYMENT.md     # how to run the stack on a server behind a reverse proxy
   decisions/        # short architecture decision records (ADR), one file per decision
   Bewertungsschema.ods  # course grading rubric (reference only)
-docker-compose.yml
+docker-compose.yml  # local stack; optional profiles: keycloak (test), tools
+docker-compose.server.yml           # override: behind a reverse proxy, no published ports
+docker-compose.server-keycloak.yml  # override: persistent Keycloak for a server
 docker/tools/       # Docker-only dev toolchain (Node, pnpm, uv, Python)
+docker/keycloak/    # local test realm (demo user; never for a server)
+docker/server/      # server realm, nginx template, .env template
 .env.example
 AGENTS.md           # this file
 CLAUDE.md           # imports AGENTS.md for Claude Code
