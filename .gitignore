@@ -32,6 +32,13 @@ __pycache__/
 *.db-journal
 backend/data/
 
+# ── Agent tooling ────────────────────────────────────────────────────────────
+# Graphify's generated knowledge graph; rebuild it with `graphify update .`.
+# The skill itself (.claude/skills/) is committed, so both of us have it.
+graphify-out/
+# Personal Claude Code settings (permissions) differ per machine.
+.claude/settings.local.json
+
 # ── Editors & operating systems ──────────────────────────────────────────────
 .DS_Store
 .idea/

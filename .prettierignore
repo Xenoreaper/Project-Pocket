@@ -10,3 +10,6 @@ pnpm-lock.yaml
 uv.lock
 backend/.venv/
 backend/data/
+# Third-party agent skill and its generated output keep their own formatting.
+.claude/
+graphify-out/
