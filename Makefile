@@ -8,7 +8,7 @@
 COMPOSE ?= docker compose
 TOOLS = $(COMPOSE) run --rm -T tools
 
-.PHONY: help install lint lint-fix format format-check typecheck test build build-firefox build-all backend-lint backend-test verify up down logs dev-web backend-dev
+.PHONY: help install lint lint-fix format format-check typecheck test build build-firefox build-all backend-lint backend-test verify up down logs dev-web backend-dev coverage backend-coverage contract-update integration-test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -49,6 +49,18 @@ backend-lint: ## Ruff check + format check for the backend
 
 backend-test: ## Run backend tests (pytest)
 	$(TOOLS) sh -c "cd backend && uv run pytest"
+
+coverage: ## Vitest with a coverage table per TypeScript package
+	$(TOOLS) pnpm coverage
+
+backend-coverage: ## pytest with a coverage table and the untested lines
+	$(TOOLS) sh -c "cd backend && uv run pytest --cov=app --cov-report=term-missing"
+
+contract-update: ## Rewrite the API contract snapshot after an intended API change
+	$(TOOLS) sh -c "cd backend && uv run python -m app.contract && chown --reference=pyproject.toml ../packages/shared/src/api-contract.json"
+
+integration-test: ## Start a throwaway stack and test real logins (Keycloak, then LDAP)
+	sh docker/integration/run.sh
 
 verify: install format-check lint typecheck test build-all backend-lint backend-test ## Run the full Definition of Done locally
 
