@@ -19,6 +19,8 @@ dependencies = [
   "argon2-cffi>=25.1,<26",
   # Verifies Keycloak's signed tokens; the "crypto" extra adds RSA support.
   "pyjwt[crypto]>=2.15,<3",
+  # LDAP client for the optional LDAP login (pure Python, no system libraries).
+  "ldap3>=2.9,<3",
 ]
 
 [dependency-groups]
@@ -27,6 +29,7 @@ dev = [
   "pytest>=9.1,<10",
   "httpx>=0.28,<0.29", # required by FastAPI's TestClient
   "ruff>=0.17,<0.18",  # linter + formatter
+  "pytest-cov>=6,<8",  # coverage report for `make backend-coverage`
 ]
 
 [build-system]
@@ -43,6 +46,12 @@ testpaths = ["tests"]
 # Make `import app...` work without installing the project globally.
 pythonpath = ["."]
 addopts = "-q"
+# Markers select one run of the integration tests (docker/integration/run.sh).
+# Registering them here makes a typo in a marker name an error.
+markers = [
+  "keycloak: integration tests that need the stack with the test Keycloak",
+  "ldap: integration tests that need the stack with the test LDAP server",
+]
 
 [tool.ruff]
 line-length = 100

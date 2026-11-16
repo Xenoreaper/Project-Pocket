@@ -25,6 +25,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+# Measurement data written by `make backend-coverage`.
+.coverage
 *.egg-info/
 
 # ── Databases / runtime data ─────────────────────────────────────────────────

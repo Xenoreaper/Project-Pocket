@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "coverage": "pnpm -r coverage",
     "build": "pnpm --filter extension build && pnpm --filter web build",
     "build:firefox": "pnpm --filter extension build:firefox"
   },

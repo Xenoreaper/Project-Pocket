@@ -5,7 +5,7 @@
  * network (AGENTS.md: no network in unit tests). Each test checks a state the
  * user can actually see.
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -43,5 +43,28 @@ describe("App", () => {
 
     expect(await screen.findByText(/could not reach the backend/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+  });
+
+  it("names the HTTP status when the backend answers with an error", async () => {
+    mockFetch(502, { detail: "Bad gateway" });
+
+    render(<App />);
+
+    expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
+  });
+
+  it("asks again after a click on retry", async () => {
+    // First call fails, the second succeeds: the retry must load the result.
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("connection refused"))
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ version: "0.1.0" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /retry/i }));
+
+    expect(await screen.findByText(/backend is healthy/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
