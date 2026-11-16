@@ -1,0 +1,189 @@
+{
+  "paths": {
+    "/api/auth/config": [
+      "get"
+    ],
+    "/api/auth/login": [
+      "post"
+    ],
+    "/api/auth/logout": [
+      "post"
+    ],
+    "/api/auth/me": [
+      "get"
+    ],
+    "/api/auth/register": [
+      "post"
+    ],
+    "/api/health": [
+      "get"
+    ],
+    "/api/items": [
+      "get",
+      "post"
+    ]
+  },
+  "schemas": {
+    "AuthConfig": {
+      "properties": [
+        "oidc",
+        "provider",
+        "registrationEnabled"
+      ],
+      "required": [
+        "oidc",
+        "provider",
+        "registrationEnabled"
+      ]
+    },
+    "HealthResponse": {
+      "properties": [
+        "status",
+        "version"
+      ],
+      "required": [
+        "status",
+        "version"
+      ]
+    },
+    "ItemListResponse": {
+      "properties": [
+        "items",
+        "total"
+      ],
+      "required": [
+        "items",
+        "total"
+      ]
+    },
+    "ItemPayload": {
+      "properties": [
+        "canonicalUrl",
+        "category",
+        "categoryLabel",
+        "description",
+        "favicon",
+        "lang",
+        "note",
+        "savedAt",
+        "siteName",
+        "snapshot",
+        "tags",
+        "title",
+        "updatedAt",
+        "url"
+      ],
+      "required": [
+        "category",
+        "categoryLabel",
+        "savedAt",
+        "snapshot",
+        "title",
+        "updatedAt",
+        "url"
+      ]
+    },
+    "ItemResponse": {
+      "properties": [
+        "canonicalUrl",
+        "category",
+        "categoryLabel",
+        "description",
+        "favicon",
+        "id",
+        "lang",
+        "note",
+        "savedAt",
+        "siteName",
+        "syncedAt",
+        "tags",
+        "title",
+        "updatedAt",
+        "url"
+      ],
+      "required": [
+        "canonicalUrl",
+        "category",
+        "categoryLabel",
+        "description",
+        "favicon",
+        "id",
+        "lang",
+        "note",
+        "savedAt",
+        "siteName",
+        "syncedAt",
+        "tags",
+        "title",
+        "updatedAt",
+        "url"
+      ]
+    },
+    "LoginRequest": {
+      "properties": [
+        "password",
+        "username"
+      ],
+      "required": [
+        "password",
+        "username"
+      ]
+    },
+    "LoginResponse": {
+      "properties": [
+        "expiresAt",
+        "token",
+        "user"
+      ],
+      "required": [
+        "expiresAt",
+        "token",
+        "user"
+      ]
+    },
+    "OidcConfig": {
+      "properties": [
+        "clientId",
+        "issuer"
+      ],
+      "required": [
+        "clientId",
+        "issuer"
+      ]
+    },
+    "RegisterRequest": {
+      "properties": [
+        "password",
+        "username"
+      ],
+      "required": [
+        "password",
+        "username"
+      ]
+    },
+    "SnapshotPayload": {
+      "properties": [
+        "capturedAt",
+        "jsonLd",
+        "text",
+        "truncated"
+      ],
+      "required": [
+        "capturedAt",
+        "jsonLd",
+        "text",
+        "truncated"
+      ]
+    },
+    "UserResponse": {
+      "properties": [
+        "displayName",
+        "id"
+      ],
+      "required": [
+        "displayName",
+        "id"
+      ]
+    }
+  }
+}

@@ -17,6 +17,7 @@ import { isCategoryId, type CategoryId, type PageSnapshot, type SavedPage } from
 
 /** Paths of the backend endpoints, relative to the server's base URL. */
 export const API_ROUTES = {
+  health: "/api/health",
   authConfig: "/api/auth/config",
   register: "/api/auth/register",
   login: "/api/auth/login",
@@ -34,8 +35,20 @@ export interface OidcConfig {
   clientId: string;
 }
 
+/**
+ * How users log in on a server:
+ * - `local`: Pocket's own accounts, with the username/password form;
+ * - `keycloak`: the Keycloak login from `oidc`, next to local accounts;
+ * - `ldap`: the same username/password form, checked against an LDAP directory.
+ */
+export const AUTH_PROVIDERS = ["local", "keycloak", "ldap"] as const;
+
+/** One of {@link AUTH_PROVIDERS}. */
+export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
+
 /** The login options a server offers. `oidc` is null without Keycloak. */
 export interface AuthConfig {
+  provider: AuthProvider;
   registrationEnabled: boolean;
   oidc: OidcConfig | null;
 }
@@ -154,6 +167,11 @@ export function toSyncPayload(page: SavedPage, categoryLabel: string): SyncItemP
 /** Type guard for `GET /api/auth/config`. */
 export function isAuthConfig(value: unknown): value is AuthConfig {
   if (!isRecord(value) || typeof value.registrationEnabled !== "boolean") {
+    return false;
+  }
+  // An unknown provider means the server is newer than this client. Rejecting
+  // it is safer than guessing which login form to show.
+  if (!AUTH_PROVIDERS.some((provider) => provider === value.provider)) {
     return false;
   }
   return (

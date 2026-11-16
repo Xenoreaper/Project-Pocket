@@ -117,11 +117,12 @@ describe("isSyncedItem / isItemListResponse", () => {
 
 describe("isAuthConfig / isLoginResponse", () => {
   it("accepts a server without Keycloak", () => {
-    expect(isAuthConfig({ registrationEnabled: true, oidc: null })).toBe(true);
+    expect(isAuthConfig({ provider: "local", registrationEnabled: true, oidc: null })).toBe(true);
   });
 
   it("accepts a server with Keycloak", () => {
     const config = {
+      provider: "keycloak",
       registrationEnabled: false,
       oidc: { issuer: "http://localhost:8080/realms/pocket", clientId: "project-pocket" },
     };
@@ -130,7 +131,23 @@ describe("isAuthConfig / isLoginResponse", () => {
   });
 
   it("rejects an incomplete Keycloak block", () => {
-    expect(isAuthConfig({ registrationEnabled: true, oidc: { issuer: "x" } })).toBe(false);
+    const config = { provider: "keycloak", registrationEnabled: true, oidc: { issuer: "x" } };
+
+    expect(isAuthConfig(config)).toBe(false);
+  });
+
+  it("accepts a server with LDAP", () => {
+    expect(isAuthConfig({ provider: "ldap", registrationEnabled: false, oidc: null })).toBe(true);
+  });
+
+  it("rejects an unknown or missing provider", () => {
+    expect(isAuthConfig({ provider: "saml", registrationEnabled: true, oidc: null })).toBe(false);
+    expect(isAuthConfig({ registrationEnabled: true, oidc: null })).toBe(false);
+  });
+
+  it("rejects values that are not objects", () => {
+    expect(isAuthConfig(null)).toBe(false);
+    expect(isAuthConfig("ldap")).toBe(false);
   });
 
   it("accepts a login response and rejects one without user", () => {
