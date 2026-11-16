@@ -29,6 +29,21 @@ services:
       POCKET_OIDC_ISSUER: ${POCKET_OIDC_ISSUER:-}
       POCKET_OIDC_CLIENT_ID: ${POCKET_OIDC_CLIENT_ID:-}
       POCKET_OIDC_JWKS_URL: ${POCKET_OIDC_JWKS_URL:-}
+      # "keycloak" (default) or "ldap". With "ldap", every login is checked
+      # against the LDAP server below. See README, "LDAP login (optional)".
+      POCKET_AUTH_PROVIDER: ${POCKET_AUTH_PROVIDER:-keycloak}
+      POCKET_LDAP_URL: ${POCKET_LDAP_URL:-}
+      POCKET_LDAP_START_TLS: ${POCKET_LDAP_START_TLS:-false}
+      POCKET_LDAP_BIND_DN: ${POCKET_LDAP_BIND_DN:-}
+      # SECRET: password of the LDAP service account, set in .env only.
+      POCKET_LDAP_BIND_PASSWORD: ${POCKET_LDAP_BIND_PASSWORD:-}
+      POCKET_LDAP_USER_BASE_DN: ${POCKET_LDAP_USER_BASE_DN:-}
+      # A key without a value is passed on only if it is set in .env or the
+      # shell. Otherwise the backend keeps its own default (see config.py). The
+      # filter's default contains braces, which `${VAR:-default}` cannot hold.
+      POCKET_LDAP_USER_FILTER:
+      POCKET_LDAP_ID_ATTRIBUTE:
+      POCKET_LDAP_DISPLAY_NAME_ATTRIBUTE:
     ports:
       # Handy for API docs (http://localhost:8000/docs) and for the extension.
       - "${BACKEND_PORT:-8000}:8000"
@@ -98,6 +113,20 @@ services:
       - "${KEYCLOAK_PORT:-8080}:8080"
     volumes:
       - ./docker/keycloak:/opt/keycloak/data/import:ro
+
+  # ── LDAP server for testing (not started by `docker compose up`) ──────────
+  # Start with: docker compose --profile ldap up -d
+  # GLAuth is a small LDAP server whose users come from docker/ldap/config.cfg
+  # (user "demo", password "pocket-demo"). Development and tests only: it
+  # speaks unencrypted LDAP and its passwords are public.
+  ldap:
+    profiles: ["ldap"]
+    # Pinned by digest, so tests always meet the same server version.
+    image: glauth/glauth@sha256:6d448805cf54fc2ca3bca2b87f89dffe571a354a69a667b5a910111be3cf430e
+    volumes:
+      - ./docker/ldap/config.cfg:/app/config/config.cfg:ro
+    # No published port: only the backend needs it, inside the Compose network
+    # under ldap://ldap:3893.
 
   # ── Developer tooling (not started by `docker compose up`) ────────────────
   tools:

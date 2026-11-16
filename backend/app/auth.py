@@ -2,7 +2,8 @@
 Authentication: password hashing, login tokens and "who is calling?".
 
 Two kinds of bearer token reach the API in the same `Authorization` header:
-- local tokens, random strings this backend issued, starting with `pkt_`;
+- local tokens, random strings this backend issued, starting with `pkt_`. They
+  are issued after a login with a local account or with LDAP (`app/ldap.py`);
 - Keycloak tokens, signed JWTs, accepted only if Keycloak is configured.
 
 `get_current_user` hides that difference, so an endpoint just declares a
@@ -25,7 +26,6 @@ from app.db import get_session
 from app.models import AuthToken, User, utc_now
 from app.oidc import (
     InvalidOidcTokenError,
-    OidcIdentity,
     OidcUnavailableError,
     OidcVerifier,
     get_oidc_verifier,
@@ -147,32 +147,37 @@ def _user_from_local_token(session: Session, raw_token: str) -> User:
     return user
 
 
-def _find_oidc_user(session: Session, identity: OidcIdentity) -> User | None:
-    """Look up the user for a verified Keycloak identity."""
+def _find_external_user(session: Session, issuer: str, subject: str) -> User | None:
+    """Look up the user for a verified identity from Keycloak or LDAP."""
     return session.exec(
-        select(User).where(
-            User.oidc_issuer == identity.issuer,
-            User.oidc_subject == identity.subject,
-        )
+        select(User).where(User.oidc_issuer == issuer, User.oidc_subject == subject)
     ).first()
 
 
-def _get_or_create_oidc_user(session: Session, identity: OidcIdentity) -> User:
+def get_or_create_external_user(
+    session: Session, issuer: str, subject: str, display_name: str
+) -> User:
     """
-    Return the user for a Keycloak identity, creating them on their first visit.
+    Return the user for an external identity, creating them on their first login.
 
-    This does not depend on `POCKET_ALLOW_REGISTRATION`, because Keycloak already
-    decides who has an account.
+    "External" means the account lives in Keycloak or LDAP, not in Pocket. The
+    pair (issuer, subject) identifies it; the columns are called `oidc_*` because
+    Keycloak came first. For LDAP the issuer is `ldap:<user base DN>`.
+
+    This does not depend on `POCKET_ALLOW_REGISTRATION`, because the directory
+    already decides who has an account.
+
+    Args:
+        session: database session; this function commits.
+        issuer: which directory vouches for the user.
+        subject: the user's permanent ID in that directory.
+        display_name: name to show, stored when the user is created.
     """
-    user = _find_oidc_user(session, identity)
+    user = _find_external_user(session, issuer, subject)
     if user is not None:
         return user
 
-    user = User(
-        oidc_issuer=identity.issuer,
-        oidc_subject=identity.subject,
-        display_name=identity.display_name,
-    )
+    user = User(oidc_issuer=issuer, oidc_subject=subject, display_name=display_name)
     session.add(user)
     try:
         session.commit()
@@ -180,7 +185,7 @@ def _get_or_create_oidc_user(session: Session, identity: OidcIdentity) -> User:
         # Two first requests can arrive at once. The unique constraint lets only
         # one insert succeed, so the other one uses the row that now exists.
         session.rollback()
-        existing = _find_oidc_user(session, identity)
+        existing = _find_external_user(session, issuer, subject)
         if existing is None:
             raise
         return existing
@@ -223,7 +228,9 @@ def get_current_user(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The login service is currently unavailable.",
         ) from error
-    return _get_or_create_oidc_user(session, identity)
+    return get_or_create_external_user(
+        session, identity.issuer, identity.subject, identity.display_name
+    )
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

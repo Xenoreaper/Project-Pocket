@@ -160,7 +160,11 @@ def test_auth_config_without_keycloak(client: TestClient, use_settings) -> None:
     """Clients can see that only local accounts are available."""
     use_settings(oidc_issuer="", oidc_client_id="")
 
-    assert client.get("/api/auth/config").json() == {"registrationEnabled": True, "oidc": None}
+    assert client.get("/api/auth/config").json() == {
+        "provider": "local",
+        "registrationEnabled": True,
+        "oidc": None,
+    }
 
 
 def test_database_enforces_foreign_keys(engine: Engine) -> None:
