@@ -55,6 +55,14 @@ Write code for a reader who knows basic programming but **not** this framework.
    build/test for both targets.
 6. **Stay in scope.** Do what the task asks. Note other ideas under "Backlog" in `docs/PROGRESS.md`
    instead of implementing them.
+7. **Test credentials stay local.** `docker/keycloak/` holds a realm with a demo user and a public
+   password. It is for local development only: never mount it in a server file, never weaken
+   `docker-compose.server*.yml` (no published ports, passwords required with `${VAR:?…}`), and never
+   put a real host name or address of our servers into the repo (use `example.org`).
+8. **Say what you could not check.** You cannot click a browser's native context menu or run
+   Firefox. Extension changes therefore need the manual smoke test (README, "Smoke test") by the
+   humans: list its steps in your reply and do not mark the feature done before they confirm.
+   The same applies to anything that only exists on a real server.
 
 ## 4. Tech stack
 
@@ -65,12 +73,14 @@ Write code for a reader who knows basic programming but **not** this framework.
 | Web app | React, Vite, TypeScript, PWA (mobile-friendly; later wrappable with Capacitor) |
 | Shared TS code | `packages/shared` — shared types and helpers for extension + web app |
 | Backend | Python, FastAPI, SQLModel, SQLite, Alembic (migrations) |
+| Accounts | local accounts (Argon2id passwords, hashed login tokens); optional Keycloak login via OpenID Connect (PyJWT) |
 | Extraction | schema.org JSON-LD parsing, `recipe-scrapers`, HTML parser; later yt-dlp/Whisper, GitHub API |
 | LLM | behind a provider interface (swappable: Gemini / Anthropic / OpenAI / Ollama); fallback only |
 | Export | CSV, Mealie REST API, later PDF / shopping lists |
 | Tests | pytest (backend), Vitest (TS), later Playwright (E2E) |
 | Lint/format | Ruff (Python), ESLint + Prettier (TS) |
-| Ops | Docker Compose |
+| Ops | Docker Compose: local stack, optional test Keycloak, server overrides behind a reverse proxy |
+| Agent tooling | Graphify skill (`.claude/skills/graphify`): local knowledge graph of the code |
 
 ## 5. Repository layout
 
@@ -95,6 +105,7 @@ docker/tools/       # Docker-only dev toolchain (Node, pnpm, uv, Python)
 docker/keycloak/    # local test realm (demo user; never for a server)
 docker/server/      # server realm, nginx template, .env template
 .env.example
+.claude/skills/     # agent skills shared by the team (Graphify); personal settings stay untracked
 AGENTS.md           # this file
 CLAUDE.md           # imports AGENTS.md for Claude Code
 ```
@@ -120,7 +131,19 @@ If the actual layout differs from this, trust the code, then point out the misma
   `fix(backend): …`, `test(web): …`, `docs: …`, `chore: …`, `refactor: …`.
   Scopes: `extension`, `web`, `backend`, `shared`, `docs`, `ci`, `docker`.
 - Small, focused changes are preferred. One logical change per proposed commit.
-- When a task is big, first post a short **plan** (steps, files to touch, open questions) and wait for OK.
+- Every task follows the same loop. Do not skip a step; say so if one was impossible.
+  1. **Plan.** Post a short plan: steps, files to touch, decisions with your recommendation, open
+     questions. Wait for OK when the task is big or touches anything in §3 rule 2.
+  2. **Implement** task by task, each with its tests.
+  3. **Verify.** Run `make verify`. If Docker, Keycloak or the server files changed, also start the
+     affected stack and exercise it (a throwaway Compose project with `-p`, removed afterwards).
+  4. **Review.** Read your complete diff (`git diff`, plus new files) the way a reviewer would,
+     before handing back: secrets, missing comments, scope creep, Chrome-only APIs, leftovers
+     (temporary files, containers, images, volumes). Fix what you find and name it in your reply.
+  5. **Record.** Update `docs/DEVLOG.md` (and `PROGRESS.md` / `ARCHITECTURE.md` if affected), then
+     propose the commits.
+- If you are not allowed to edit a file (on some machines `.env.example` is blocked for agents),
+  give the humans the exact lines to add instead of working around the block.
 - Update `docs/PROGRESS.md` when a task changes the status of a milestone. Update `docs/ARCHITECTURE.md`
   when components or data flows change. Add an ADR in `docs/decisions/` for every significant decision.
 - After every task, update `docs/DEVLOG.md`: rewrite "Current state" and add a log entry at the top
@@ -180,6 +203,12 @@ make dev-web                      # Vite dev server on http://localhost:5173
 # ── Run the stack ─────────────────────────────────────────────────────────────
 docker compose up --build         # backend + web app
 docker compose down               # stop (SQLite volume is kept)
+docker compose --profile keycloak up -d --build   # plus the test Keycloak (README, "Keycloak login")
+
+# ── Server files (docs/DEPLOYMENT.md) ─────────────────────────────────────────
+# Check the merged server configuration without starting anything:
+docker compose -f docker-compose.yml -f docker-compose.server.yml \
+  -f docker-compose.server-keycloak.yml --profile keycloak config -q
 
 # ── Everything at once (Definition of Done) ───────────────────────────────────
 make verify
@@ -192,3 +221,19 @@ docker compose run --rm -T tools pnpm -r test
 docker compose run --rm -T tools sh -c "cd backend && uv run pytest"
 docker compose run --rm -T tools sh -c "cd backend && uv run alembic upgrade head"
 ```
+
+### Code knowledge graph (Graphify, optional)
+
+The Graphify skill in `.claude/skills/graphify` builds a local graph of the code. Building and
+querying the code graph needs no LLM and no API key, and nothing leaves the machine. It is a
+navigation aid, not a rule: reading the source is always allowed, and the source wins if they differ.
+
+```bash
+uv tool install graphifyy         # once per machine (the PyPI name really has two "y")
+graphify update .                 # build or refresh graphify-out/ (git-ignored)
+graphify explain "get_current_user"            # one symbol and its connections
+graphify path "savePageFromMenu" "savePage"    # how two symbols are connected
+graphify query "how is an uploaded item stored"
+```
+
+Refresh the graph after larger changes; a stale graph gives stale answers.

@@ -15,12 +15,27 @@ coding agent, following `AGENTS.md`.
   accounts, Keycloak login checked against a real Keycloak, and the item sync API; server setup
   checked in a local throwaway stack.
 - **Deployed:** Pocket and Keycloak run on the team's home server behind its nginx.
-- **Next:** task 6, the extension's connection settings.
+- **Next:** agreed before task 6: LDAP login as an alternative to Keycloak, plus coverage,
+  integration and contract tests (plan posted, waiting for OK). Then task 6, the extension's
+  connection settings.
 - **Open checks:** access to the server from outside the home network; no browser login through
   Keycloak yet (no client has one); the sync flow has no client yet.
 - **Known gap:** `.env.example` lacks `KEYCLOAK_PORT` and `KEYCLOAK_ADMIN_PASSWORD`.
 
 ## Log
+
+### 2026-11-16: Graphify skill and a stricter agent workflow
+
+- Installed the Graphify skill into `.claude/skills/graphify` (version 0.9.111) so both of us and
+  the agent can query a local knowledge graph of the code. The graph (`graphify-out/`) is
+  git-ignored and rebuilt with `graphify update .`; building it needs no LLM.
+- The installer also added hooks on every read/search and a section in `CLAUDE.md` that makes the
+  graph mandatory. We removed both on purpose: the graph is an aid, documented in `AGENTS.md` §9.
+- `AGENTS.md`: a fixed task loop (plan, implement, verify, review, record), two new hard rules
+  (test credentials stay local; say what could not be checked), accounts and tooling in the tech
+  stack, Keycloak and server commands.
+- Verified: graph built (1049 nodes), `graphify explain/path/query` answered, `make format-check`
+  and `make lint`.
 
 ### 2026-11-14: first deployment on the home server
 
