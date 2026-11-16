@@ -17,9 +17,9 @@ coding agent, following `AGENTS.md`.
 - **Next:** task 6, the extension's connection settings and login.
 - **Open checks:** LDAP is not on the home server; no browser login yet (no client has one); the
   sync flow has no client yet.
-- **Open risk:** password checks failed sporadically on the laptop on 2026-11-16 (see the log entry).
-- **Known gap:** `.env.example` lacks `KEYCLOAK_PORT`, `KEYCLOAK_ADMIN_PASSWORD` and the LDAP
-  settings (an agent may not edit that file).
+- **Open risk:** password checks failed sporadically on one laptop on 2026-11-16 (see the log
+  entry); the home server is not affected.
+- **Known gap:** `.env.example` lacks `KEYCLOAK_PORT` and `KEYCLOAK_ADMIN_PASSWORD`.
 
 ## Log
 
@@ -47,7 +47,7 @@ coding agent, following `AGENTS.md`.
   full test runs. Hashing itself was deterministic (1,200 identical results), the same versions
   passed in fresh containers, and the code path is unchanged since 2026-11-11. Likely a problem of
   this machine (new kernel 7.3.4 since the reboot; unrelated segfaults in the kernel log), not of
-  the code. Not resolved; check the home server with the command in the reply of that day.
+  the code. Not resolved. The home server passed the same check: 500 of 500 password checks ok.
 - Verified: `make verify`, `make integration-test`, `make coverage`, `make backend-coverage`.
 
 ### 2026-11-16: Graphify skill and a stricter agent workflow
