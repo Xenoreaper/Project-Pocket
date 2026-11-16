@@ -301,6 +301,66 @@ realm allows the password grant used in step 3 only to make this check possible 
 do not enable it on a production client. Keycloak's data is reset whenever the container is
 recreated.
 
+## LDAP login (optional)
+
+Instead of Keycloak, Pocket can check logins against an LDAP directory (OpenLDAP, Active Directory,
+…). Users then log in with the normal username and password form. The setting
+`POCKET_AUTH_PROVIDER` chooses: `keycloak` (default) or `ldap`.
+
+In LDAP mode:
+
+- every login is checked against LDAP; local accounts and registration are switched off, so nobody
+  can claim a name that also exists in the directory;
+- a user is created in Pocket on the first successful login and recognised by the attribute in
+  `POCKET_LDAP_ID_ATTRIBUTE` from then on;
+- the password passes through the backend for the check. It is never stored or logged.
+
+### Connect an existing directory
+
+Set in `.env` and restart the stack:
+
+```bash
+POCKET_AUTH_PROVIDER=ldap
+# Use ldaps:// (or ldap:// with POCKET_LDAP_START_TLS=true) outside a test setup.
+POCKET_LDAP_URL=ldaps://ldap.example.org:636
+POCKET_LDAP_USER_BASE_DN=ou=people,dc=example,dc=org
+# Service account that may search for users; leave both empty for anonymous search.
+POCKET_LDAP_BIND_DN=cn=pocket,ou=services,dc=example,dc=org
+POCKET_LDAP_BIND_PASSWORD=<secret>
+# Optional, with their defaults. Active Directory usually needs
+# (sAMAccountName={username}) and objectGUID.
+POCKET_LDAP_USER_FILTER=(uid={username})
+POCKET_LDAP_ID_ATTRIBUTE=uid
+POCKET_LDAP_DISPLAY_NAME_ATTRIBUTE=cn
+```
+
+**Secret:** `POCKET_LDAP_BIND_PASSWORD` is the service account's password. It belongs in `.env` only,
+never in the repository. A read-only account that may only search the user subtree is enough.
+
+Check: <http://localhost:8000/api/auth/config> shows `"provider":"ldap"`. A wrong setting stops the
+backend at startup with a message that names the missing value.
+
+### Test LDAP server in Docker
+
+For development, Compose can start a small LDAP server (GLAuth) with the users from
+`docker/ldap/config.cfg`: user `demo` with password `pocket-demo`, and a service account.
+
+```bash
+POCKET_AUTH_PROVIDER=ldap \
+POCKET_LDAP_URL=ldap://ldap:3893 \
+POCKET_LDAP_USER_BASE_DN=ou=people,dc=pocket,dc=test \
+POCKET_LDAP_BIND_DN=cn=pocket-service,ou=services,dc=pocket,dc=test \
+POCKET_LDAP_BIND_PASSWORD=pocket-service \
+docker compose --profile ldap up -d --build
+
+curl -s http://localhost:8000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"pocket-demo"}'
+```
+
+Expected: a JSON answer with a `token`. The test server speaks unencrypted LDAP and its passwords are
+public, so it must never run on a reachable server. `make integration-test` runs the same login
+automatically (see "Tests").
+
 ## Docker
 
 | File                         | Purpose                                                                   |
@@ -321,12 +381,27 @@ volume deletes all data: `docker compose down -v`.
 
 ## Tests
 
-| Layer          | Tool                     | Command                         |
-| -------------- | ------------------------ | ------------------------------- |
-| Shared package | Vitest                   | `make test` (runs all TS tests) |
-| Extension      | Vitest + Testing Library | `make test`                     |
-| Web start page | Vitest + Testing Library | `make test`                     |
-| Backend        | pytest                   | `make backend-test`             |
+| Layer                        | Tool                                    | Command                                     |
+| ---------------------------- | --------------------------------------- | ------------------------------------------- |
+| Shared package               | Vitest                                  | `make test` (runs all TS tests)             |
+| Extension                    | Vitest + Testing Library                | `make test`                                 |
+| Web start page               | Vitest + Testing Library                | `make test`                                 |
+| Backend                      | pytest                                  | `make backend-test`                         |
+| API contract                 | pytest + Vitest                         | part of `make test` and `make backend-test` |
+| Real logins (Keycloak, LDAP) | pytest against a throwaway Docker stack | `make integration-test`                     |
+| Coverage                     | Vitest (v8) + pytest-cov                | `make coverage`, `make backend-coverage`    |
+
+**Unit tests** never use the network: Keycloak tokens are signed with a test key, LDAP runs on
+ldap3's in-memory mock server, and `fetch` is replaced with a fake.
+
+**Contract test:** `packages/shared/src/api-contract.json` is a snapshot of the backend's endpoints
+and fields. The backend fails if it no longer matches the API, the TypeScript side fails if the types
+in `api.ts` no longer match it. After an intended API change, run `make contract-update` and then
+adapt the TypeScript types until `make test` passes.
+
+**Integration test:** `make integration-test` starts the stack under the project name `pocket-it`,
+logs in with a real Keycloak and then with a real LDAP server, uploads a page and lists it, and
+removes everything afterwards. It takes about two minutes and is not part of `make verify`.
 
 CI (`.github/workflows/ci.yml`) runs lint, format check, type check, tests and both extension
 builds plus the web build on every push/PR.

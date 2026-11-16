@@ -55,8 +55,8 @@ Write code for a reader who knows basic programming but **not** this framework.
    build/test for both targets.
 6. **Stay in scope.** Do what the task asks. Note other ideas under "Backlog" in `docs/PROGRESS.md`
    instead of implementing them.
-7. **Test credentials stay local.** `docker/keycloak/` holds a realm with a demo user and a public
-   password. It is for local development only: never mount it in a server file, never weaken
+7. **Test credentials stay local.** `docker/keycloak/` and `docker/ldap/` hold demo users with public
+   passwords. They are for local development only: never mount them in a server file, never weaken
    `docker-compose.server*.yml` (no published ports, passwords required with `${VAR:?…}`), and never
    put a real host name or address of our servers into the repo (use `example.org`).
 8. **Say what you could not check.** You cannot click a browser's native context menu or run
@@ -73,7 +73,7 @@ Write code for a reader who knows basic programming but **not** this framework.
 | Web app | React, Vite, TypeScript, PWA (mobile-friendly; later wrappable with Capacitor) |
 | Shared TS code | `packages/shared` — shared types and helpers for extension + web app |
 | Backend | Python, FastAPI, SQLModel, SQLite, Alembic (migrations) |
-| Accounts | local accounts (Argon2id passwords, hashed login tokens); optional Keycloak login via OpenID Connect (PyJWT) |
+| Accounts | local accounts (Argon2id passwords, hashed login tokens); optional Keycloak login via OpenID Connect (PyJWT) or LDAP login (ldap3), chosen with `POCKET_AUTH_PROVIDER` |
 | Extraction | schema.org JSON-LD parsing, `recipe-scrapers`, HTML parser; later yt-dlp/Whisper, GitHub API |
 | LLM | behind a provider interface (swappable: Gemini / Anthropic / OpenAI / Ollama); fallback only |
 | Export | CSV, Mealie REST API, later PDF / shopping lists |
@@ -103,6 +103,9 @@ docker-compose.server.yml           # override: behind a reverse proxy, no publi
 docker-compose.server-keycloak.yml  # override: persistent Keycloak for a server
 docker/tools/       # Docker-only dev toolchain (Node, pnpm, uv, Python)
 docker/keycloak/    # local test realm (demo user; never for a server)
+docker/ldap/        # local test LDAP users for GLAuth (never for a server)
+docker/integration/ # runner for `make integration-test`
+backend/tests_integration/  # tests against a running stack (not part of `make verify`)
 docker/server/      # server realm, nginx template, .env template
 .env.example
 .claude/skills/     # agent skills shared by the team (Graphify); personal settings stay untracked
@@ -200,10 +203,17 @@ make backend-test                 # pytest
 make backend-dev                  # uvicorn --reload on http://localhost:8000
 make dev-web                      # Vite dev server on http://localhost:5173
 
+# ── Deeper checks (run them when your change touches their area) ──────────────
+make coverage                     # Vitest with coverage per TS package
+make backend-coverage             # pytest with coverage and untested lines
+make contract-update              # after an intended API change: refresh the contract
+make integration-test             # throwaway stack: real Keycloak and LDAP logins (~2 min)
+
 # ── Run the stack ─────────────────────────────────────────────────────────────
 docker compose up --build         # backend + web app
 docker compose down               # stop (SQLite volume is kept)
 docker compose --profile keycloak up -d --build   # plus the test Keycloak (README, "Keycloak login")
+docker compose --profile ldap up -d --build       # plus the test LDAP server (README, "LDAP login")
 
 # ── Server files (docs/DEPLOYMENT.md) ─────────────────────────────────────────
 # Check the merged server configuration without starting anything:

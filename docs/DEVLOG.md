@@ -10,19 +10,45 @@ coding agent, following `AGENTS.md`.
 
 ## Current state
 
-- **Milestone:** M2 (accounts and sync), task 5 of 10 done.
+- **Milestone:** M2 (accounts and sync). Backend side done, including LDAP; clients still open.
 - **Works:** saving pages locally in the extension (Chromium + Firefox); backend with local
-  accounts, Keycloak login checked against a real Keycloak, and the item sync API; server setup
-  checked in a local throwaway stack.
-- **Deployed:** Pocket and Keycloak run on the team's home server behind its nginx.
-- **Next:** agreed before task 6: LDAP login as an alternative to Keycloak, plus coverage,
-  integration and contract tests (plan posted, waiting for OK). Then task 6, the extension's
-  connection settings.
-- **Open checks:** access to the server from outside the home network; no browser login through
-  Keycloak yet (no client has one); the sync flow has no client yet.
-- **Known gap:** `.env.example` lacks `KEYCLOAK_PORT` and `KEYCLOAK_ADMIN_PASSWORD`.
+  accounts, Keycloak login and LDAP login (checked against real servers by
+  `make integration-test`), item sync API; deployment on the home server.
+- **Next:** task 6, the extension's connection settings and login.
+- **Open checks:** LDAP is not on the home server; no browser login yet (no client has one); the
+  sync flow has no client yet.
+- **Open risk:** password checks failed sporadically on the laptop on 2026-11-16 (see the log entry).
+- **Known gap:** `.env.example` lacks `KEYCLOAK_PORT`, `KEYCLOAK_ADMIN_PASSWORD` and the LDAP
+  settings (an agent may not edit that file).
 
 ## Log
+
+### 2026-11-16: LDAP login, contract, integration and coverage tests
+
+- **LDAP** as an alternative to Keycloak, chosen with `POCKET_AUTH_PROVIDER` (`keycloak` is the
+  default and falls back to local accounts until it is configured). The backend searches the user
+  with a service account and checks the password with a bind (`backend/app/ldap.py`), then issues
+  the same token as a local login. In LDAP mode local accounts and registration are off.
+  `/api/auth/config` now names the provider. New dependency `ldap3`; test server GLAuth as Compose
+  profile `ldap`.
+- **Security finding from the integration test:** GLAuth treats an escaped `*` in a search filter
+  as a wildcard, so the login name `*` with the demo password logged in. Our escaping was correct,
+  but we now also reject login names containing `* ( ) \` or NUL before any search.
+- **Contract test:** `make contract-update` writes `packages/shared/src/api-contract.json` from the
+  backend's OpenAPI; pytest checks it against the backend, Vitest against the TypeScript types.
+- **Integration test:** `make integration-test` runs the real stack twice (Keycloak, then LDAP) in
+  the throwaway project `pocket-it` and removes it afterwards: 12 tests.
+- **Coverage** (new dev dependencies `pytest-cov`, `@vitest/coverage-v8`): backend 95 % to 96 %,
+  web app 71 % to 95 % (statements), shared 98 %, extension 94 % unchanged. Added tests for the
+  web app's error and retry paths, the SQLite folder helper, the LLM provider interface and LDAP
+  attribute handling, plus a missing `cleanup()` in the web test setup.
+- **Open risk:** on the laptop, Argon2 password checks sometimes returned "mismatch" for the
+  correct password and hash: up to 10 % of checks for a while, later 0 of 3,000 and about 1 in 12
+  full test runs. Hashing itself was deterministic (1,200 identical results), the same versions
+  passed in fresh containers, and the code path is unchanged since 2026-11-11. Likely a problem of
+  this machine (new kernel 7.3.4 since the reboot; unrelated segfaults in the kernel log), not of
+  the code. Not resolved; check the home server with the command in the reply of that day.
+- Verified: `make verify`, `make integration-test`, `make coverage`, `make backend-coverage`.
 
 ### 2026-11-16: Graphify skill and a stricter agent workflow
 

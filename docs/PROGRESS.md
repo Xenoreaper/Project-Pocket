@@ -58,15 +58,26 @@ pocket.
       a real token)
 - [x] Server deployment behind a reverse proxy, with persistent Keycloak (`docs/DEPLOYMENT.md`; runs
       on the home server)
-- [ ] Extension connection settings with local and Keycloak login
+- [x] Graphify skill for code navigation and a fixed task loop for agents (`AGENTS.md` §7, §9)
+- [x] Test coverage measured for backend and TypeScript, biggest gaps closed (`make coverage`,
+      `make backend-coverage`)
+- [x] Contract test: TypeScript API types match the backend (`api-contract.json`)
+- [x] LDAP login as an alternative to Keycloak, chosen by `POCKET_AUTH_PROVIDER` (backend; not
+      on the home server yet)
+- [x] Integration test against a throwaway Docker stack, with Keycloak and LDAP
+      (`make integration-test`)
+- [ ] Extension connection settings with local, Keycloak and LDAP login
 - [ ] Extension sync button with retry and conflict handling (no data loss offline)
-- [ ] Web app login (local and Keycloak) and item list
+- [ ] Web app login (local, Keycloak and LDAP) and item list
+- [ ] M2 documentation: ADR for accounts and sync, `ARCHITECTURE.md` updated
 
 **Acceptance criteria:**
 
 - Saving a page still works offline and without an account; sync is an explicit user action.
 - The extension can be linked to a self-hosted server with its URL and an account.
 - Without Keycloak configuration, the whole stack works with local accounts only.
+- With `POCKET_AUTH_PROVIDER=ldap`, users log in with their directory password; local accounts and
+  registration are off.
 - With Keycloak configured, a user can log in through it in the web app and in the extension in
   both browsers; a token from another client or issuer is rejected.
 - A failed sync loses no local data and can be retried.
